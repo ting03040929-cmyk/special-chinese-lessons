@@ -1,0 +1,22 @@
+# Ignore large documents and source files
+*.pdf
+*.doc
+*.docx
+*.xlsx
+*.pptx
+*.zip
+
+# Ignore raw asset directories
+**/圖片/
+slide_images/
+
+# Ignore workspace temporary/scratch files
+temp_*
+scratch_*
+image_prompts_clean.txt
+.gemini/
+
+# Python Cache
+__pycache__/
+.venv/
+.pytest_cache/
