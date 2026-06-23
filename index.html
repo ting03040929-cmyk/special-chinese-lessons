@@ -173,11 +173,9 @@
       z-index: 10;
     }
 
-    /* Pending / Coming Soon State */
+    /* Pending / Coming Soon State (隱藏製作中的課程，避免學生看到) */
     .lesson-card.pending {
-      opacity: 0.75;
-      cursor: not-allowed;
-      pointer-events: none;
+      display: none;
     }
 
     .lesson-card.pending:hover {
