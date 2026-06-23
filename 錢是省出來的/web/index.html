@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>國文互動學習網頁 - 錢是省出來的</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+TC:wght@400;700;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="emoji-icon">💰</span>
+        <div>
+          <h1>錢是省出來的</h1>
+          <p class="subtitle">國中特教國文互動學習單元</p>
+        </div>
+      </div>
+      <!-- Tab Navigation -->
+      <nav class="app-nav">
+        <button class="nav-btn active" data-tab="reader">
+          <span class="btn-icon">📖</span> 課文導讀
+        </button>
+        <button class="nav-btn" data-tab="flashcards">
+          <span class="btn-icon">🃏</span> 翻卡學習
+        </button>
+        <button class="nav-btn" data-tab="matching">
+          <span class="btn-icon">🤝</span> 語詞配對
+        </button>
+        <button class="nav-btn" data-tab="fillblank">
+          <span class="btn-icon">✍️</span> 填充挑戰
+        </button>
+        <button class="nav-btn" data-tab="quiz">
+          <span class="btn-icon">📝</span> 選擇大賽
+        </button>
+      </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      
+      <!-- Tab 1: 課文導讀 -->
+      <section id="tab-reader" class="tab-content active-content">
+        <div class="reader-layout">
+          <!-- Left: Text Control and Content -->
+          <div class="reader-text-container card-panel">
+            <div class="panel-header">
+              <h3>📖 課文內容</h3>
+              <div class="text-controls">
+                <button id="btn-reader-play-all" class="control-btn accent-btn">
+                  <span>🔊</span> 朗讀全文
+                </button>
+                <button id="btn-reader-stop" class="control-btn danger-btn hide">
+                  <span>⏹️</span> 停止
+                </button>
+                <div class="font-size-adjuster">
+                  <button id="btn-font-dec" class="circle-btn">A-</button>
+                  <button id="btn-font-inc" class="circle-btn">A+</button>
+                </div>
+              </div>
+            </div>
+            <div id="reader-text-flow" class="reader-text-flow">
+              <!-- Dynamically populated paragraphs -->
+            </div>
+          </div>
+          <!-- Right: Visual Aids and Vocabulary Info -->
+          <div class="reader-sidebar card-panel">
+            <div class="panel-header">
+              <h3>🔍 本段語詞視覺化</h3>
+            </div>
+            <div id="reader-visual-aids" class="visual-aids-grid">
+              <!-- Dynamically populated related vocab images -->
+            </div>
+            <div id="vocab-detail-box" class="vocab-detail-box hide">
+              <h4 id="vocab-detail-word">語詞名稱</h4>
+              <div class="vocab-detail-img-container">
+                <img id="vocab-detail-img" src="" alt="語詞配圖">
+              </div>
+              <p id="vocab-detail-def">語詞解釋...</p>
+              <p id="vocab-detail-example" class="example-text">例句...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 2: 翻卡學習 -->
+      <section id="tab-flashcards" class="tab-content">
+        <div class="flashcards-intro card-panel">
+          <h3>🃏 偏難語詞卡牌</h3>
+          <p>點選卡牌可以進行 3D 翻轉，看一看詞義與圖片，點擊卡片旁的喇叭聽發音喔！</p>
+        </div>
+        <div id="flashcards-grid" class="flashcards-grid">
+          <!-- Dynamically populated 3D flip cards -->
+        </div>
+      </section>
+
+      <!-- Tab 3: 語詞配對 -->
+      <section id="tab-matching" class="tab-content">
+        <div class="matching-container card-panel">
+          <div class="panel-header">
+            <h3>🤝 語詞與配圖配對遊戲</h3>
+            <div class="score-board">
+              <span>得分：</span><strong id="match-score">0</strong>
+            </div>
+            <button id="btn-reset-matching" class="control-btn accent-btn">重新開始</button>
+          </div>
+          <p class="game-instructions">玩法：請先選取左側的「語詞卡」，再選取右側對應的「圖片卡」即可完成配對！</p>
+          <div class="matching-game-area">
+            <!-- Left: Word Column -->
+            <div id="matching-words-col" class="matching-column"></div>
+            <!-- Right: Image Column -->
+            <div id="matching-images-col" class="matching-column"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 4: 填充挑戰 -->
+      <section id="tab-fillblank" class="tab-content">
+        <div class="fillblank-container card-panel">
+          <div class="panel-header">
+            <h3>✍️ 語詞填充題大挑戰</h3>
+            <div class="progress-bar-container">
+              <div id="fillblank-progress" class="progress-bar" style="width: 12.5%"></div>
+            </div>
+            <div class="question-counter">
+              題號：<span id="fillblank-current-idx">1</span> / 8
+            </div>
+          </div>
+          <!-- Question Box -->
+          <div class="fillblank-box">
+            <p id="fillblank-question" class="quiz-question-text">載入中...</p>
+            <div class="hint-container">
+              <button id="btn-fillblank-hint" class="hint-btn">💡 顯示提示</button>
+              <p id="fillblank-hint-text" class="hint-text-content hide">提示文字...</p>
+            </div>
+            <!-- Drag slot or target slot -->
+            <div class="answer-slot-container">
+              <span>答案：</span>
+              <div id="fillblank-answer-slot" class="answer-slot">點擊下方詞卡填入</div>
+              <button id="btn-clear-fillblank" class="circle-btn">🗑️ 清除</button>
+            </div>
+          </div>
+          <!-- Word Bank -->
+          <div class="word-bank-container">
+            <h4>【語詞銀行】</h4>
+            <div id="fillblank-word-bank" class="word-bank">
+              <!-- Dynamically populated word chips -->
+            </div>
+          </div>
+          <!-- Navigation buttons -->
+          <div class="quiz-navigation">
+            <button id="btn-prev-fillblank" class="nav-arrow-btn" disabled>◀ 上一題</button>
+            <button id="btn-submit-fillblank" class="control-btn success-btn">確認答案</button>
+            <button id="btn-next-fillblank" class="nav-arrow-btn" disabled>下一題 ▶</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 5: 選擇大賽 -->
+      <section id="tab-quiz" class="tab-content">
+        <div class="quiz-container card-panel">
+          <!-- Quiz Mode Toggle -->
+          <div class="quiz-mode-selector">
+            <button id="btn-quiz-mode-concept" class="mode-tab-btn active">📊 語詞概念選擇題</button>
+            <button id="btn-quiz-mode-comprehension" class="mode-tab-btn">📖 閱讀理解選擇題</button>
+          </div>
+
+          <div class="panel-header quiz-info-header">
+            <h3 id="quiz-title">語詞概念選擇題</h3>
+            <div class="question-counter">
+              題號：<span id="quiz-current-idx">1</span> / <span id="quiz-total-count">8</span>
+            </div>
+          </div>
+
+          <!-- Question Block -->
+          <div class="quiz-card">
+            <div id="quiz-section-tag" class="section-tag hide">【對應課文】</div>
+            <p id="quiz-question" class="quiz-question-text">載入中...</p>
+            <div id="quiz-hint-container" class="hint-container">
+              <button id="btn-quiz-hint" class="hint-btn">💡 顯示提示</button>
+              <p id="quiz-hint-text" class="hint-text-content hide">提示文字...</p>
+            </div>
+            <!-- MCQ Options -->
+            <div id="quiz-options-container" class="quiz-options-grid">
+              <!-- Dynamically populated option buttons -->
+            </div>
+            <!-- Feedback explanation -->
+            <div id="quiz-feedback" class="quiz-feedback-box hide">
+              <span id="quiz-feedback-icon">✔️</span>
+              <p id="quiz-feedback-text">回答正確！</p>
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <div class="quiz-navigation">
+            <button id="btn-prev-quiz" class="nav-arrow-btn" disabled>◀ 上一題</button>
+            <button id="btn-next-quiz" class="nav-arrow-btn" disabled>下一題 ▶</button>
+          </div>
+        </div>
+      </section>
+      
+    </main>
+
+    <!-- Score Summary Modal (Universal Game Over Overlay) -->
+    <div id="summary-modal" class="modal-overlay hide">
+      <div class="modal-card">
+        <span class="modal-crown">🏆</span>
+        <h2>太棒了！挑戰完成！</h2>
+        <p id="summary-modal-text">你已經成功答完所有題目囉！</p>
+        <div class="score-stars">
+          ⭐ ⭐ ⭐ ⭐ ⭐
+        </div>
+        <button id="btn-close-modal" class="control-btn accent-btn">重新挑戰</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio elements for synthetic sounds in case offline -->
+  <audio id="audio-correct" preload="auto"></audio>
+  <audio id="audio-wrong" preload="auto"></audio>
+  
+  <!-- JavaScript -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
