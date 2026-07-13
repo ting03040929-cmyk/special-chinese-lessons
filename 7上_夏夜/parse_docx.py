@@ -1,0 +1,417 @@
+# /// script
+# dependencies = [
+#   "pillow",
+# ]
+# ///
+
+import os
+import json
+
+LESSON_NAME = "夏夜"
+OUTPUT_JS_PATH = os.path.join("web", "data.js")
+
+def generate_data():
+    story = [
+        "蝴蝶和蜜蜂們帶著花朵的蜜糖回來了，羊隊和牛群告別了田野回家了，火紅的太陽也滾著火輪子回家了，當街燈亮起來向村莊道過晚安，夏天的夜就輕輕地來了。",
+        "來了！來了！從山坡上輕輕地爬下來了。",
+        "來了！來了！從椰子樹梢上輕輕地爬下來了。",
+        "撒了滿天的珍珠和一枚又大又亮的銀幣。",
+        "美麗的夏夜呀！涼爽的夏夜呀！小雞和小鴨們關在欄裡睡了。",
+        "聽完了老祖母的故事，小弟弟和小妹妹也闔上眼睛走向夢鄉了。",
+        "（小妹妹夢見她變做蝴蝶在大花園裡忽東忽西地飛，小弟弟夢見他變做一條魚在藍色的大海裡游水。）",
+        "睡了，都睡了！朦朧地，山巒靜靜地睡了！朦朧地，田野靜靜地睡了！",
+        "只有窗外瓜架上的南瓜還醒著，伸長了藤蔓輕輕地往屋頂上爬。",
+        "只有綠色的小河還醒著，低聲地歌唱著溜過彎彎的小橋。",
+        "只有夜風還醒著，從竹林裡跑出來，跟著提燈的螢火蟲，在美麗的夏夜裡愉快地旅行。"
+    ]
+
+    common_vocabs = [
+        "蜜糖", "村莊", "夏夜", "街燈", "花園", "歌唱", 
+        "告別", "迎接", "眼睛", "醒著", "愉快", "旅行"
+    ]
+
+    difficult_vocabs = [
+        {
+            "word": "田野",
+            "zhuyin": "ㄊㄧㄢˊ ㄧㄝˇ",
+            "definition": "長滿農作物的大片土地、田地。",
+            "example_sentence": "羊隊和牛群告別了田野回家了。"
+        },
+        {
+            "word": "樹梢",
+            "zhuyin": "ㄕㄨˋ ㄕㄠ",
+            "definition": "樹木的末端、最高最尖的地方。",
+            "example_sentence": "來了！來了！從椰子樹梢上輕輕地爬下來了。"
+        },
+        {
+            "word": "珍珠",
+            "zhuyin": "ㄓㄣ  ㄓㄨ",
+            "definition": "一種在貝殼裡面長出來、圓圓亮亮像寶石的東西。",
+            "example_sentence": "撒了滿天的珍珠和一枚又大又亮的銀幣。"
+        },
+        {
+            "word": "涼爽",
+            "zhuyin": "ㄌㄧSelector ㄕㄨㄤˇ",
+            "definition": "天氣或環境很涼快、舒服，不會讓人滿頭大汗。",
+            "example_sentence": "涼爽的夏夜呀！"
+        },
+        {
+            "word": "夢鄉",
+            "zhuyin": "ㄇㄥˋ ㄒㄧㄤ",
+            "definition": "睡著後作夢的世界。",
+            "example_sentence": "小弟弟和小妹妹也闔上眼睛走向夢鄉了。"
+        },
+        {
+            "word": "朦朧",
+            "zhuyin": "ㄇㄥˊ ㄌㄨㄥˊ",
+            "definition": "光線不充足或眼睛看過去糊糊的、不夠清楚。",
+            "example_sentence": "朦朧地，山巒靜靜地睡了！"
+        },
+        {
+            "word": "山巒",
+            "zhuyin": "ㄕㄢ  ㄌㄨㄢˊ",
+            "definition": "一座接一座連在一起的山。",
+            "example_sentence": "朦朧地，山巒靜靜地睡了！"
+        },
+        {
+            "word": "藤蔓",
+            "zhuyin": "ㄊㄥˊ ㄇㄢˋ",
+            "definition": "植物細細長長、會抓著東西爬牆的莖。",
+            "example_sentence": "只有窗外瓜架上的南瓜還醒著，伸長了藤蔓輕輕地往屋頂上爬。"
+        }
+    ]
+
+    # Correction of zhuyin for "涼爽"
+    difficult_vocabs[3]["zhuyin"] = "ㄌㄧㄤˊ ㄕㄨㄤˇ"
+
+    fill_in_the_blanks = [
+        {
+            "question": "1.下課時，我看到操場邊的小鳥停在很高很高的＿＿＿＿＿＿上唱歌。",
+            "hint": "【提示：樹木的末端、最高最尖的地方。】"
+        },
+        {
+            "question": "2.媽媽脖子上戴著一串白白亮亮的＿＿＿＿＿＿項鍊，看起來好高貴。",
+            "hint": "【提示：一種在貝殼裡面長出來、圓圓亮亮像寶石的東西。】"
+        },
+        {
+            "question": "3.阿公在鄉下的＿＿＿＿＿＿裡種了很多綠油油的蔬菜 and 稻米。",
+            "hint": "【提示：長滿農作物的大片土地、田地。】"
+        },
+        {
+            "question": "4.躺在舒服的床上，小明閉上眼睛，很快就進入了＿＿＿＿＿＿。",
+            "hint": "【提示：睡著後作夢的世界。】"
+        },
+        {
+            "question": "5.剛睡醒的時候，小華的眼睛覺得＿＿＿＿＿＿的，看時鐘都看不清楚。",
+            "hint": "【提示：光線不充足或眼睛看過去糊糊的、不夠清楚。】"
+        },
+        {
+            "question": "6.遠遠望去，那一整排高低起伏、連在一起的＿＿＿＿＿＿真漂亮。",
+            "hint": "【提示：一座接一座連在一起的山。】"
+        },
+        {
+            "question": "7.陽台上的牽牛花伸出細細長長的＿＿＿＿＿＿，順著鐵窗往上爬。",
+            "hint": "【提示：植物細細長長、會抓著東西爬牆的莖。】"
+        },
+        {
+            "question": "8.吹冷氣的時候，教室裡感覺非常＿＿＿＿＿＿，大家上課更有精神。",
+            "hint": "【提示：天氣或環境很涼快、舒服，不會讓人滿頭大汗。】"
+        }
+    ]
+
+    matching_questions = [
+        {
+            "question": "很多座高高低低的山連在一起，在黑夜裡像靜靜睡著了一樣。",
+            "hint": "【提示：和「許多座山連在一起」有關的詞。】"
+        },
+        {
+            "question": "一大片綠色的農田，看過去非常寬廣，常有牛羊在那裡吃草。",
+            "hint": "【提示：和「大片農田土地」有關的詞。】"
+        },
+        {
+            "question": "樹木最高、最頂端的地方，課文用來形容夏夜從這裡爬下來。",
+            "hint": "【提示：和「樹木最高處」有關的詞。】"
+        },
+        {
+            "question": "植物像繩子一樣細細長長的莖，會抱著架子一直往屋頂上爬。",
+            "hint": "【提示：和「會爬牆的植物器官」有關的詞。】"
+        },
+        {
+            "question": "圓圓亮亮的東西，課文用來比喻夜空中一閃一閃的滿天星星。",
+            "hint": "【提示：和「圓圓亮亮的寶石物品」有關的詞。】"
+        },
+        {
+            "question": "吹到皮膚上覺得很舒服、很涼快，身體不會流汗的溫度。",
+            "hint": "【提示：和「舒服涼快的天氣感覺」有關的詞。】"
+        },
+        {
+            "question": "小朋友躺在床上闔上眼睛睡著了，開始在腦海裡開心作夢的地方。",
+            "hint": "【提示：和「睡覺與作夢世界」有關的詞。】"
+        },
+        {
+            "question": "眼睛看過去糊糊的、不清楚，好像有一層霧擋在前面一樣。",
+            "hint": "【提示：和「景物糊糊的、看不清楚」有關的詞。】"
+        }
+    ]
+
+    mcqs_blank = [
+        {
+            "question": "聽完老祖母講的故事，小妹妹闔上眼睛，開心地走向＿＿＿＿＿＿了。",
+            "hint": "【提示：形容睡著後進入作夢的世界。】",
+            "options": ["涼爽", "夢鄉", "藤蔓", "樹梢"]
+        },
+        {
+            "question": "打開教室的窗戶和電風扇後，感覺非常＿＿＿＿＿＿，大家都不熱了。",
+            "hint": "【提示：形容身體感覺很舒服、很涼快。】",
+            "options": ["田野", "朦朧", "涼爽", "山巒"]
+        },
+        {
+            "question": "抬頭一看，那顆又大又紅的椰子就掛在很高很高的＿＿＿＿＿＿上。",
+            "hint": "【提示：樹木的末端、最高最尖的地方。】",
+            "options": ["樹梢", "夢鄉", "藤蔓", "珍珠"]
+        },
+        {
+            "question": "火車經過一大片綠色的＿＿＿＿＿＿，可以看到許多農夫在辛苦種田。",
+            "hint": "【提示：長滿農作物的大片綠色土地。】",
+            "options": ["夢鄉", "山巒", "田野", "樹梢"]
+        },
+        {
+            "question": "晚上的霧很大，路燈的光芒看起來＿＿＿＿＿＿的，讓人看不清楚路。",
+            "hint": "【提示：形容景物看起來糊糊的、不清楚。】",
+            "options": ["涼爽", "朦朧", "藤蔓", "珍珠"]
+        },
+        {
+            "question": "太陽快要下山了，遠處的＿＿＿＿＿＿看起來黑黑的，一整排一動也不動。",
+            "hint": "【提示：一座一座連在一起的山。】",
+            "options": ["山巒", "田野", "樹梢", "夢鄉"]
+        },
+        {
+            "question": "菜園裡的南瓜長出了綠色的＿＿＿＿＿＿，輕輕地爬滿了整個瓜架。",
+            "hint": "【提示：植物細細長長、會抓著東西往上爬的莖。】",
+            "options": ["樹梢", "藤蔓", "涼爽", "朦朧"]
+        },
+        {
+            "question": "課文中，夏夜撒了滿天的＿＿＿＿＿＿，看起來就像一閃一閃的亮晶晶星星。",
+            "hint": "【提示：圓圓亮亮的東西，用來比喻星星。】",
+            "options": ["涼爽", "田野", "珍珠", "山巒"]
+        }
+    ]
+
+    mcqs_concept = [
+        {
+            "question": "當我們覺得天氣很不熱、很涼快、很舒服的時候，可以用哪一個詞？",
+            "hint": "【提示：與舒服涼快的天氣、環境溫度有關的詞。】",
+            "options": ["樹梢", "涼爽", "山巒", "藤蔓"]
+        },
+        {
+            "question": "課文中，小弟弟和小妹妹閉上眼睛睡著了，是去到了哪裡？",
+            "hint": "【提示：與睡覺、作夢有關的詞。】",
+            "options": ["夢鄉", "樹梢", "田野", "珍珠"]
+        },
+        {
+            "question": "課文中，夏夜除了從山坡上爬下來，還從椰子樹的哪裡爬下來？",
+            "hint": "【提示：與樹木最高處有關的詞。】",
+            "options": ["夢鄉", "樹梢", "朦朧", "涼爽"]
+        },
+        {
+            "question": "羊隊和牛群吃飽了，準備要告別吃草的大片土地，那個地方叫什麼？",
+            "hint": "【提示：與大片農耕土地有關的詞。】",
+            "options": ["田野", "山巒", "藤蔓", "朦朧"]
+        },
+        {
+            "question": "課文形容夜深了，看過去高高低低、糊糊不清楚的山，可以用哪兩個詞？",
+            "hint": "【提示：與高低起伏的山、看不清楚的景物有關的詞。】",
+            "options": ["涼爽、樹梢", "朦朧、山巒", "藤蔓、田野", "夢鄉、珍珠"]
+        },
+        {
+            "question": "窗外瓜架上的南瓜還醒著，牠用來往屋頂上爬的細長部分是什麼？",
+            "hint": "【提示：與植物細長攀爬器官有關的詞。】",
+            "options": ["藤蔓", "涼爽", "山巒", "樹梢"]
+        },
+        {
+            "question": "課文說夏夜在天上撒了「珍珠」，這是用來形容天空中的什麼東西？",
+            "hint": "【提示：與夜空中閃閃發光的亮點有關。】",
+            "options": ["滿天的星星", "下大雨的雨滴", "飛過的小鳥", "路邊的街燈"]
+        },
+        {
+            "question": "如果黑夜裡光線很暗、又有霧，讓景物看起來糊糊、不清楚，這是什麼狀態？",
+            "hint": "【提示：與光線暗淡、看不清楚的狀態有關。】",
+            "options": ["涼爽", "朦朧", "夢鄉", "藤蔓"]
+        }
+    ]
+
+    reading_comprehension = [
+        # 對應課文第一段
+        {
+            "section": "【對應課文第一段】",
+            "question": "課文中，是誰帶著花朵的蜜糖回來了？",
+            "options": ["羊隊和牛群", "小雞和小鴨", "蝴蝶和蜜蜂們", "小弟弟和小妹妹"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "羊隊和牛群吃飽了，牠們告別了哪裡準備回家？",
+            "options": ["藍色的大海", "寬廣的田野", "昏暗的藥房", "學校的操場"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "課文形容火紅的太陽滾著什麼東西回家了？",
+            "options": ["火輪子", "大皮球", "腳踏車", "水桶"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "當什麼東西亮起來向村莊道過晚安後，夏天的夜就來了？",
+            "options": ["火柴", "街燈", "手電筒", "警棍"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "課文形容夏天的夜是怎麼來到村莊的？",
+            "options": ["急急忙忙地來了", "吵吵鬧鬧地來了", "輕輕地來了", "跑步跑來了"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "夏天的夜來了，牠是先從哪裡「輕輕地爬下來」？",
+            "options": ["山坡上", "屋頂上", "圍欄裡", "小橋上"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "除了山坡，夏夜還從什麼樹的樹梢輕輕地爬下來？",
+            "options": ["蘋果樹", "椰子樹", "榕樹", "楓樹"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "課文第一段中，夏夜在天上撒了滿天的什麼？",
+            "options": ["糖果", "珍珠", "餅乾", "衣服"]
+        },
+        {
+            "section": "【對應課文第一段】",
+            "question": "課文第一段中，夏夜撒了一枚「又大又亮的銀幣」，這是指天空中的什麼？",
+            "options": ["太陽", "星星", "月亮", "飛機"]
+        },
+        # 對應課文第二段（前半）
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "課文第二段一開始，作者用哪兩個詞來讚美夏夜？",
+            "options": ["寒冷、可怕", "美麗、涼爽", "熱鬧、好玩", "傷心、生氣"]
+        },
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "課文中，小雞和小鴨們被關在哪裡睡著了？",
+            "options": ["房間裡", "欄裡（圍欄）", "書包裡", "冰箱裡"]
+        },
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "小弟弟和小妹妹是在聽完了誰的故事之後才去睡覺的？",
+            "options": ["老師", "警察", "老祖母", "鄰居"]
+        },
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "小弟弟和小妹妹要睡覺時，把身體的哪一個部位闔上了？",
+            "options": ["嘴巴", "眼睛", "耳朶", "手掌"]
+        },
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "小妹妹闔上眼睛後，走向了哪裡？",
+            "options": ["學校", "夢鄉", "廚房", "公園"]
+        },
+        {
+            "section": "// 用括號補充說明小妹妹與小弟弟的夢境",
+            "section": "【對應課文第二段（前半）】",
+            "question": "小妹妹在夢裡，夢見自己變成了什麼動物？",
+            "options": ["一條魚", "一隻小鴨", "一隻蝴蝶", "一隻蜜蜂"]
+        },
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "小妹妹變做蝴蝶後，在哪裡忽東忽西地飛？",
+            "options": ["大花園裡", "竹林裡", "藍色的大海裡", "屋頂上"]
+        },
+        {
+            "section": "【對應課文第二段（前半）】",
+            "question": "小弟弟在夢裡，夢見自己變做一條魚在哪裡游水？",
+            "options": ["洗澡盆裡", "藍色的大海裡", "學校游泳池", "綠色的小河裡"]
+        },
+        # 對應課文第二段（後半）
+        {
+            "section": "【對應課文第二段（後半）】",
+            "question": "大家都睡了，只有窗外瓜架上的什麼植物還醒著？",
+            "options": ["西瓜", "南瓜", "蘋果", "香蕉"]
+        },
+        {
+            "section": "【對應課文第二段（後半）】",
+            "question": "還醒著的綠色小河，一邊低聲歌唱著，一邊溜過哪裡？",
+            "options": ["彎彎的小橋", "高高的山坡", "椰子樹梢", "寬廣的田野"]
+        },
+        {
+            "section": "【對應課文第二段（後半）】",
+            "question": "醒著的夜風從竹林裡跑出來，跟著誰在夏夜裡愉快地旅行？",
+            "options": ["巡邏的警察", "提燈的螢火蟲", "吃草的羊隊", "飛舞的蝴蝶"]
+        }
+    ]
+
+    data = {
+        "lesson_name": LESSON_NAME,
+        "story": story,
+        "common_vocabs": common_vocabs,
+        "difficult_vocabs": difficult_vocabs,
+        "fill_in_the_blanks": fill_in_the_blanks,
+        "matching_questions": matching_questions,
+        "mcqs_blank": mcqs_blank,
+        "mcqs_concept": mcqs_concept,
+        "reading_comprehension": reading_comprehension
+    }
+
+    js_content = f"const lessonData = {json.dumps(data, ensure_ascii=False, indent=2)};\n"
+    
+    os.makedirs(os.path.dirname(OUTPUT_JS_PATH), exist_ok=True)
+    with open(OUTPUT_JS_PATH, 'w', encoding='utf-8') as f:
+        f.write(js_content)
+    print(f"成功生成 {OUTPUT_JS_PATH}！")
+
+def optimize_and_copy_images(source_dir, target_dir):
+    try:
+        from PIL import Image
+    except ImportError:
+        print("未安裝 Pillow 庫，跳過圖片自動優化與複製！")
+        return
+        
+    if not os.path.exists(source_dir):
+        print(f"找不到來源圖片目錄: {source_dir}，跳過圖片處理。")
+        return
+        
+    os.makedirs(target_dir, exist_ok=True)
+    print("開始自動優化並複製圖片到網頁目錄...")
+    
+    valid_exts = ('.png', '.jpg', '.jpeg', '.webp', '.bmp')
+    
+    for filename in os.listdir(source_dir):
+        name, ext = os.path.splitext(filename)
+        if ext.lower() not in valid_exts:
+            continue
+            
+        src_path = os.path.join(source_dir, filename)
+        dest_path = os.path.join(target_dir, f"{name}.png")
+        
+        try:
+            with Image.open(src_path) as img:
+                max_size = 600
+                try:
+                    resample = Image.Resampling.LANCZOS
+                except AttributeError:
+                    resample = Image.LANCZOS
+                    
+                if img.width > max_size or img.height > max_size:
+                    img.thumbnail((max_size, max_size), resample)
+                
+                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                    img.save(dest_path, 'PNG', optimize=True)
+                else:
+                    img.convert('RGB').save(dest_path, 'PNG', optimize=True)
+                    
+            src_size = os.path.getsize(src_path) / 1024
+            dest_size = os.path.getsize(dest_path) / 1024
+            print(f"  - {filename} 優化成功: {src_size:.1f} KB -> {dest_size:.1f} KB (省下 {src_size - dest_size:.1f} KB)")
+        except Exception as e:
+            print(f"  - 優化 {filename} 失敗: {e}")
+
+if __name__ == '__main__':
+    generate_data()
+    optimize_and_copy_images("圖片", os.path.join("web", "images"))
