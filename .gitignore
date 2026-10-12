@@ -9,6 +9,7 @@
 # Ignore raw asset directories
 **/圖片/
 slide_images/
+**/Kahoot/
 
 # Ignore workspace temporary/scratch files
 temp_*
