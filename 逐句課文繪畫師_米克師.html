@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>逐句課文繪畫師</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --brand: #4f46e5;
+            --brand-2: #7c3aed;
+            --paper: #faf8f4;
+            --line: #eceaf5;
+        }
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--paper);
+            background-image: radial-gradient(rgba(79, 70, 229, 0.08) 1px, transparent 1px);
+            background-size: 22px 22px;
+            color: #1f2937;
+        }
+
+        /* ---------- 卡片與進場 ---------- */
+        .card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 1.5rem;
+            box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 14px 36px -14px rgba(49, 46, 129, 0.16);
+        }
+        .fade-in { animation: fadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+        /* ---------- 按鈕 ---------- */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            font-weight: 700; border-radius: 1rem; color: #fff;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease;
+        }
+        .btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
+        .btn:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+        .btn:disabled { cursor: not-allowed; opacity: 0.5; filter: grayscale(0.5); box-shadow: none; }
+        .btn.is-busy:disabled { cursor: progress; opacity: 0.9; filter: none; }
+        .btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 10px 22px -8px rgba(79, 70, 229, 0.6); }
+        .btn-success { background: #059669; box-shadow: 0 10px 22px -10px rgba(5, 150, 105, 0.6); }
+        .btn-purple  { background: #9333ea; box-shadow: 0 10px 22px -10px rgba(147, 51, 234, 0.6); }
+        .btn-muted   { background: #6b7280; }
+        .btn-glow { animation: glow 1.6s ease-in-out infinite; }
+        @keyframes glow { 50% { box-shadow: 0 0 0 7px rgba(99, 102, 241, 0.22), 0 10px 22px -8px rgba(79, 70, 229, 0.6); } }
+        .attention { animation: attention 0.9s ease-in-out 2; }
+        @keyframes attention { 50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.3); transform: scale(1.03); } }
+
+        /* ---------- 步驟列 ---------- */
+        .step { display: flex; align-items: center; gap: 0.5rem; color: #9ca3af; font-size: 0.875rem; font-weight: 500; white-space: nowrap; }
+        .step-dot {
+            width: 1.85rem; height: 1.85rem; border-radius: 999px; display: grid; place-items: center;
+            background: #e5e7eb; color: #6b7280; font-weight: 700; font-size: 0.8rem; transition: all 0.3s ease;
+        }
+        .step[data-state="active"] { color: var(--brand); font-weight: 700; }
+        .step[data-state="active"] .step-dot { background: var(--brand); color: #fff; box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.16); }
+        .step[data-state="done"] { color: #4b5563; }
+        .step[data-state="done"] .step-dot { background: #10b981; color: #fff; }
+        .step-line { flex: 1; height: 3px; min-width: 12px; border-radius: 3px; background: #e5e7eb; transition: background 0.4s ease; }
+        .step-line[data-state="done"] { background: #10b981; }
+        @media (max-width: 640px) { .step .step-label { display: none; } .step[data-state="active"] .step-label { display: inline; } }
+
+        /* ---------- 文字框狀態 ---------- */
+        #storyInput { transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }
+        .flash-indigo { background-color: #eef2ff !important; border-color: #818cf8 !important; }
+        .flash-purple { background-color: #faf5ff !important; border-color: #c084fc !important; }
+        .input-error  { background-color: #fef2f2 !important; border-color: #ef4444 !important; }
+        .is-streaming { border-color: #a5b4fc !important; box-shadow: 0 0 0 4px rgba(165, 180, 252, 0.35); }
+        .counter { color: #9ca3af; }
+        .counter[data-level="ok"] { color: #6366f1; }
+        .counter[data-level="warn"] { color: #d97706; }
+        .counter[data-level="error"] { color: #e11d48; font-weight: 700; }
+
+        /* ---------- 文字任務的等待動畫 ---------- */
+        .text-loader-lines { display: flex; flex-direction: column; gap: 8px; width: min(280px, 70%); }
+        .text-loader-lines span {
+            height: 10px; border-radius: 6px; transform-origin: left;
+            background: linear-gradient(90deg, #c7d2fe, #e9d5ff);
+            animation: lineGrow 2.4s ease-in-out infinite; animation-delay: calc(var(--i) * 0.18s);
+        }
+        @keyframes lineGrow {
+            0% { transform: scaleX(0); opacity: 0.3; }
+            35%, 70% { transform: scaleX(1); opacity: 1; }
+            100% { transform: scaleX(1); opacity: 0; }
+        }
+        .dots { display: inline-flex; gap: 4px; }
+        .dots i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: bounce 1s ease-in-out infinite; }
+        .dots i:nth-child(2) { animation-delay: 0.15s; }
+        .dots i:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-6px); opacity: 1; } }
+        .msg-swap { animation: msgIn 0.4s ease both; }
+        @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        /* ---------- 繪圖等待動畫（迷你六格 + 鉛筆） ---------- */
+        .draw-stage { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0.9rem; padding: 1.5rem 1rem; text-align: center; }
+        .mini-board {
+            position: relative; width: 168px; aspect-ratio: 3 / 4; padding: 8px;
+            display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 6px;
+            background: #fff; border-radius: 14px; transform: rotate(-1.5deg);
+            box-shadow: 0 12px 30px -10px rgba(49, 46, 129, 0.35), 0 0 0 1px var(--line);
+        }
+        .mini-cell {
+            position: relative; overflow: hidden; border-radius: 6px;
+            background: linear-gradient(110deg, #f1f2f8 30%, #fbfbff 50%, #f1f2f8 70%);
+            background-size: 200% 100%; animation: shimmer 1.6s linear infinite;
+        }
+        @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+        .mini-cell.is-active { background: #fff; animation: none; outline: 2px dashed #a5b4fc; outline-offset: -2px; }
+        .mini-cell.is-done {
+            animation: cellPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 0 3px, transparent 3px 8px), var(--c);
+        }
+        @keyframes cellPop { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+        .scribble { position: absolute; inset: 15%; width: 70%; height: 70%; }
+        .scribble path {
+            fill: none; stroke: #6366f1; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+            stroke-dasharray: 140; stroke-dashoffset: 140; animation: draw 2.2s ease-in-out infinite;
+        }
+        @keyframes draw { 0% { stroke-dashoffset: 140; opacity: 1; } 60% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+        .pencil {
+            position: absolute; left: 27%; top: 18%; z-index: 2; pointer-events: none;
+            transition: left 0.9s cubic-bezier(0.65, 0, 0.35, 1), top 0.9s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+        .pencil i {
+            display: block; font-size: 26px; color: #f59e0b;
+            filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.25));
+            animation: pencilWiggle 0.9s ease-in-out infinite;
+        }
+        @keyframes pencilWiggle {
+            0%, 100% { transform: translate(0, -100%) rotate(0); }
+            25% { transform: translate(6px, -95%) rotate(-6deg); }
+            50% { transform: translate(-4px, -105%) rotate(4deg); }
+            75% { transform: translate(5px, -100%) rotate(-3deg); }
+        }
+        .draw-msg { font-weight: 700; color: #4338ca; min-height: 1.5rem; }
+
+        /* ---------- 進度 ---------- */
+        .progress-track { height: 0.75rem; background: #eef0f7; border-radius: 999px; overflow: hidden; }
+        .progress-bar { height: 100%; width: 0; border-radius: 999px; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease; }
+        .progress-bar[data-color="indigo"] {
+            background-color: var(--brand);
+            background-image: linear-gradient(45deg, rgba(255,255,255,.22) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.22) 75%, transparent 75%);
+            background-size: 1rem 1rem; animation: stripes 0.8s linear infinite;
+        }
+        .progress-bar[data-color="yellow"] { background-color: #f59e0b; }
+        .progress-bar[data-color="red"]    { background-color: #ef4444; }
+        .progress-bar[data-color="green"]  { background-color: #10b981; }
+        @keyframes stripes { to { background-position: 1rem 0; } }
+
+        .chip, .badge { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; font-weight: 700; transition: all 0.25s ease; border: 2px solid transparent; }
+        .chip { min-width: 2.25rem; height: 2.25rem; padding: 0 0.5rem; border-radius: 0.75rem; font-size: 0.8rem; }
+        .badge { padding: 0.1rem 0.6rem; border-radius: 999px; font-size: 0.72rem; }
+        [data-status="waiting"]   { background: #f3f4f6; color: #9ca3af; }
+        [data-status="drawing"]   { background: #eef2ff; color: #4f46e5; border-color: #a5b4fc; animation: chipPulse 1.4s ease-in-out infinite; }
+        [data-status="done"]      { background: #d1fae5; color: #047857; }
+        [data-status="error"]     { background: #fee2e2; color: #b91c1c; }
+        [data-status="cancelled"] { background: #f3f4f6; color: #9ca3af; text-decoration: line-through; }
+        @keyframes chipPulse { 50% { box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.16); } }
+
+        /* ---------- 圖片 ---------- */
+        .img-reveal { animation: reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        @keyframes reveal { from { opacity: 0; transform: scale(0.97); filter: blur(10px); } to { opacity: 1; transform: none; filter: none; } }
+        .story-item { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .story-item:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(17,24,39,.04), 0 22px 40px -16px rgba(49,46,129,.25); }
+
+        /* ---------- Toast ---------- */
+        .toast-enter { animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes toastSlideIn { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <main class="flex-grow container mx-auto px-4 py-6 max-w-5xl">
+
+        <!-- 標題（不使用固定導覽列，避免在 Gemini Canvas 內佔用可視高度） -->
+        <h1 class="flex items-center gap-3 mb-5">
+            <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white grid place-items-center shadow-md shadow-indigo-200 shrink-0">
+                <i class="fas fa-book-open"></i>
+            </span>
+            <span class="flex flex-col leading-tight">
+                <span class="text-xl sm:text-2xl font-black text-gray-900 tracking-wide">逐句課文繪畫師</span>
+                <span class="text-xs sm:text-sm text-gray-500">把課文變成角色連貫的六格漫畫</span>
+            </span>
+        </h1>
+
+        <!-- 步驟列 -->
+        <nav id="stepper" class="card px-5 py-4 mb-8" aria-label="操作步驟">
+            <ol class="flex items-center gap-3">
+                <li class="step" data-step="1"><span class="step-dot">1</span><span class="step-label">準備故事</span></li>
+                <li class="step-line" data-line="1" aria-hidden="true"></li>
+                <li class="step" data-step="2"><span class="step-dot">2</span><span class="step-label">智慧分段</span></li>
+                <li class="step-line" data-line="2" aria-hidden="true"></li>
+                <li class="step" data-step="3"><span class="step-dot">3</span><span class="step-label">逐句簡化（可選）</span></li>
+                <li class="step-line" data-line="3" aria-hidden="true"></li>
+                <li class="step" data-step="4"><span class="step-dot">4</span><span class="step-label">生成漫畫</span></li>
+            </ol>
+        </nav>
+
+        <!-- 模式選擇 -->
+        <section id="modeSelectionArea" class="card p-6 sm:p-10 mb-8 text-center fade-in">
+            <h2 class="text-2xl sm:text-3xl font-black text-gray-900 mb-2">今天想畫哪個故事？</h2>
+            <p class="text-gray-500 mb-8">選一種開始方式，接下來每一步都會有提示。</p>
+            <div class="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto">
+                <button id="btnOwnStory" class="group text-left bg-white border-2 border-indigo-100 hover:border-indigo-400 rounded-3xl p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-100 focus-visible:outline focus-visible:outline-4 focus-visible:outline-indigo-200">
+                    <div class="flex items-start justify-between mb-5">
+                        <div class="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl grid place-items-center text-2xl group-hover:scale-110 group-hover:rotate-[-6deg] transition-transform">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <span class="text-xs font-bold text-indigo-700 bg-indigo-50 rounded-full px-2.5 py-1">適合課文</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 mb-1">我有自己的故事</h3>
+                    <p class="text-sm text-gray-500 leading-relaxed">貼上課文或故事，AI 會忠於原文切成分鏡，一字不改。</p>
+                    <span class="mt-4 inline-flex items-center gap-1 text-sm font-bold text-indigo-600">開始貼上 <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i></span>
+                </button>
+                <button id="btnAiStory" class="group text-left bg-white border-2 border-purple-100 hover:border-purple-400 rounded-3xl p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-100 focus-visible:outline focus-visible:outline-4 focus-visible:outline-purple-200">
+                    <div class="flex items-start justify-between mb-5">
+                        <div class="w-14 h-14 bg-purple-100 text-purple-600 rounded-2xl grid place-items-center text-2xl group-hover:scale-110 group-hover:rotate-[6deg] transition-transform">
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                        </div>
+                        <span class="text-xs font-bold text-purple-700 bg-purple-50 rounded-full px-2.5 py-1">快速發想</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 mb-1">請 AI 幫我想故事</h3>
+                    <p class="text-sm text-gray-500 leading-relaxed">輸入一個主題、選格數，AI 寫出剛好對應格數的短故事。</p>
+                    <span class="mt-4 inline-flex items-center gap-1 text-sm font-bold text-purple-600">輸入主題 <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i></span>
+                </button>
+            </div>
+        </section>
+
+        <!-- AI 寫故事 -->
+        <section id="aiGenerationArea" class="card p-6 sm:p-8 mb-8 hidden fade-in">
+            <div class="flex items-center gap-3 mb-2">
+                <button data-back class="w-9 h-9 rounded-full grid place-items-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition" title="返回" aria-label="返回"><i class="fas fa-arrow-left"></i></button>
+                <h2 class="text-xl font-bold text-gray-900">AI 故事小幫手</h2>
+            </div>
+            <p class="text-sm text-gray-500 mb-6 sm:ml-12">輸入主題並選擇格數，AI 會寫出剛好對應格數的短故事。</p>
+
+            <div class="grid md:grid-cols-[1fr_12rem_auto] gap-4 items-end">
+                <div>
+                    <label for="aiTopicInput" class="block text-sm font-bold text-gray-700 mb-1.5">故事主題</label>
+                    <input type="text" id="aiTopicInput" maxlength="200"
+                           class="w-full p-3.5 border-2 border-gray-200 rounded-2xl focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition"
+                           placeholder="例如：一隻想飛的企鵝、太空冒險…（按 Enter 送出）">
+                </div>
+                <div>
+                    <label for="aiPanelCount" class="block text-sm font-bold text-gray-700 mb-1.5">總格數</label>
+                    <select id="aiPanelCount" class="w-full p-3.5 border-2 border-gray-200 rounded-2xl focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition bg-white"></select>
+                </div>
+                <button id="generateStoryBtn" class="btn btn-purple py-3.5 px-6 whitespace-nowrap">
+                    <i class="fas fa-wand-magic-sparkles"></i> 幫我寫故事
+                </button>
+            </div>
+
+            <div id="storyLoader" class="hidden mt-6 rounded-2xl border-2 border-dashed border-purple-200 bg-purple-50/50 p-6 flex-col items-center gap-4"></div>
+        </section>
+
+        <!-- 輸入與分段 -->
+        <section id="inputArea" class="card p-6 sm:p-8 mb-8 hidden fade-in">
+            <div class="flex justify-between items-center mb-2 flex-wrap gap-3">
+                <div class="flex items-center gap-3">
+                    <button data-back class="w-9 h-9 rounded-full grid place-items-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition" title="返回" aria-label="返回"><i class="fas fa-arrow-left"></i></button>
+                    <h2 class="text-xl font-bold text-gray-900">貼上您的故事</h2>
+                </div>
+                <button id="loadSampleBtn" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3.5 rounded-xl transition-colors flex items-center gap-2 font-medium">
+                    <i class="fas fa-file-import"></i> 匯入範例《手的故事》
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4 sm:ml-12">分段完成後仍可直接在文字框內修改，<strong class="text-gray-700">每一行就是一格</strong>。</p>
+
+            <div class="relative mb-1">
+                <textarea id="storyInput" maxlength="3000"
+                          class="w-full h-56 p-4 border-2 border-gray-200 rounded-2xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none resize-y leading-relaxed"
+                          placeholder="請貼上或輸入您的原始故事內容（如《手的故事》）。&#10;貼上完成後，點選下方「AI 智慧分段」，AI 會依情節脈絡切成分鏡！"></textarea>
+                <div id="textLoader" class="hidden absolute inset-0 rounded-2xl bg-white/90 backdrop-blur-sm flex-col items-center justify-center gap-4 z-10"></div>
+            </div>
+            <div id="lineCounter" class="counter text-xs text-right mb-4">0 / 3000 字</div>
+
+            <div class="rounded-2xl bg-gradient-to-r from-indigo-50 via-violet-50 to-indigo-50 border border-indigo-100 p-4 sm:p-5 flex flex-col md:flex-row justify-between items-center gap-4">
+                <button id="smartSegmentBtn" class="btn btn-primary w-full md:w-auto text-base md:text-lg py-3.5 px-7">
+                    <i class="fas fa-brain"></i><span>AI 智慧分段</span>
+                </button>
+                <div id="stepStatusText" class="text-sm md:text-base font-medium text-gray-600 text-center md:text-right px-2" aria-live="polite"></div>
+            </div>
+
+            <!-- 分段完成後的選擇 -->
+            <div id="simplifyDecisionArea" class="hidden mt-4 p-5 rounded-2xl border-2 border-indigo-200 bg-white fade-in">
+                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div>
+                        <h4 class="text-base md:text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 grid place-items-center text-sm"><i class="fas fa-question"></i></span>
+                            分段完成！要不要逐句簡化？
+                        </h4>
+                        <p class="text-xs md:text-sm text-gray-500 mt-1.5 lg:ml-10">把句子換成更好懂、動作更明確的詞彙（適合特教或繪本），簡化後也能一鍵復原。</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row items-stretch gap-3 w-full lg:w-auto">
+                        <button id="btnNoSimplify" class="btn btn-success text-sm md:text-base py-3.5 px-6 whitespace-nowrap">
+                            <i class="fas fa-play"></i><span>不用，直接生成</span>
+                        </button>
+                        <button id="btnDoSimplify" class="btn btn-purple text-sm md:text-base py-3.5 px-6 whitespace-nowrap">
+                            <i class="fas fa-feather-pointed"></i><span>好，逐句簡化</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 風格與生成 -->
+            <div class="mt-8 pt-6 border-t border-dashed border-gray-200">
+                <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><i class="fas fa-palette text-indigo-500"></i> 插畫風格</h3>
+                <fieldset class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    <legend class="sr-only">插畫風格</legend>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="artStyle" value="水彩繪本風格，溫馨可愛，明亮色彩，兒童插畫" class="sr-only peer" checked>
+                        <div class="h-full rounded-2xl border-2 border-gray-200 p-2.5 transition-all hover:border-indigo-300 peer-checked:border-indigo-500 peer-checked:ring-4 peer-checked:ring-indigo-100 peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-200">
+                            <div class="h-14 rounded-xl bg-gradient-to-br from-amber-200 via-rose-200 to-sky-200 grid place-items-center text-white text-xl mb-2"><i class="fas fa-droplet drop-shadow"></i></div>
+                            <div class="text-sm font-bold text-center text-gray-800">溫馨水彩</div>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="artStyle" value="色鉛筆手繪風格，細膩柔和，童話感" class="sr-only peer">
+                        <div class="h-full rounded-2xl border-2 border-gray-200 p-2.5 transition-all hover:border-indigo-300 peer-checked:border-indigo-500 peer-checked:ring-4 peer-checked:ring-indigo-100 peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-200">
+                            <div class="h-14 rounded-xl bg-gradient-to-br from-orange-100 via-lime-100 to-emerald-200 grid place-items-center text-emerald-700/70 text-xl mb-2"><i class="fas fa-pencil"></i></div>
+                            <div class="text-sm font-bold text-center text-gray-800">色鉛筆手繪</div>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="artStyle" value="3D 動畫電影風格，皮克斯風格，高品質，生動" class="sr-only peer">
+                        <div class="h-full rounded-2xl border-2 border-gray-200 p-2.5 transition-all hover:border-indigo-300 peer-checked:border-indigo-500 peer-checked:ring-4 peer-checked:ring-indigo-100 peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-200">
+                            <div class="h-14 rounded-xl bg-gradient-to-br from-sky-300 via-indigo-300 to-fuchsia-300 grid place-items-center text-white text-xl mb-2"><i class="fas fa-cube drop-shadow"></i></div>
+                            <div class="text-sm font-bold text-center text-gray-800">3D 動畫</div>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="artStyle" value="幾何向量風格，鮮豔色彩，現代感，扁平化設計" class="sr-only peer">
+                        <div class="h-full rounded-2xl border-2 border-gray-200 p-2.5 transition-all hover:border-indigo-300 peer-checked:border-indigo-500 peer-checked:ring-4 peer-checked:ring-indigo-100 peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-200">
+                            <div class="h-14 rounded-xl bg-gradient-to-br from-yellow-300 via-red-300 to-blue-400 grid place-items-center text-white text-xl mb-2"><i class="fas fa-shapes drop-shadow"></i></div>
+                            <div class="text-sm font-bold text-center text-gray-800">現代向量</div>
+                        </div>
+                    </label>
+                </fieldset>
+                <button id="generateBtn" disabled class="btn btn-primary w-full text-lg py-4 px-6">
+                    <i class="fas fa-magic"></i> 開始生成漫畫
+                </button>
+            </div>
+        </section>
+
+        <!-- 進度（生成時固定在畫面上方） -->
+        <section id="progressSection" class="card p-5 mb-8 hidden sticky top-2 z-10 fade-in">
+            <div class="flex justify-between items-center gap-3 mb-2">
+                <span id="progressText" class="text-sm sm:text-base font-bold text-gray-800" aria-live="polite">準備生成…</span>
+                <span id="progressPercentage" class="text-lg font-black text-indigo-600 tabular-nums">0%</span>
+            </div>
+            <div class="progress-track mb-3"><div id="progressBar" class="progress-bar" data-color="indigo"></div></div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div id="pageChips" class="flex flex-wrap gap-1.5" aria-label="各張進度"></div>
+                <div class="flex items-center gap-3 justify-between sm:justify-end">
+                    <span id="progressMeta" class="text-xs text-gray-500 tabular-nums"></span>
+                    <div id="controlButtons" class="hidden gap-2">
+                        <button id="pauseBtn" class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-bold py-1.5 px-3.5 rounded-xl transition-colors flex items-center gap-1.5"><i class="fas fa-pause"></i> 暫停</button>
+                        <button id="resumeBtn" class="hidden bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-sm font-bold py-1.5 px-3.5 rounded-xl transition-colors items-center gap-1.5"><i class="fas fa-play"></i> 繼續</button>
+                        <button id="cancelBtn" class="bg-rose-100 hover:bg-rose-200 text-rose-700 text-sm font-bold py-1.5 px-3.5 rounded-xl transition-colors flex items-center gap-1.5"><i class="fas fa-stop"></i> 取消</button>
+                    </div>
+                </div>
+            </div>
+            <!-- 下載按鈕：放在固定的進度區，捲到任何一張都能直接下載 -->
+            <div id="exportBar" class="hidden flex-wrap items-center sm:justify-end gap-2 mt-3 pt-3 border-t border-dashed border-[#eceaf5]">
+                <span class="text-xs text-gray-500 w-full sm:w-auto sm:mr-auto"><i class="fas fa-circle-check text-emerald-500 mr-1"></i>已完成的圖片可隨時下載</span>
+                <button id="downloadAllBtn" class="btn btn-success flex-1 sm:flex-none text-sm py-2 px-4 rounded-xl"><i class="fas fa-file-zipper"></i> 下載全部 (ZIP)</button>
+                <button id="exportPdfBtn" class="btn flex-1 sm:flex-none text-sm py-2 px-4 rounded-xl bg-blue-600"><i class="fas fa-file-pdf"></i> 匯出 PDF</button>
+            </div>
+        </section>
+
+        <!-- 結果 -->
+        <section>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+                <h2 class="text-2xl font-black text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-images text-indigo-500"></i> 您的六格漫畫
+                    <span id="resultsCount" class="text-sm font-bold text-gray-400"></span>
+                </h2>
+            </div>
+
+            <div id="emptyState" class="rounded-3xl border-2 border-dashed border-gray-300 bg-white/60 p-10 sm:p-14 text-center flex flex-col items-center">
+                <div class="grid grid-cols-2 gap-1.5 w-20 aspect-[3/4] p-1.5 bg-white rounded-xl shadow-sm border border-gray-200 rotate-[-4deg] mb-5" aria-hidden="true">
+                    <span class="rounded bg-amber-100"></span><span class="rounded bg-rose-100"></span>
+                    <span class="rounded bg-sky-100"></span><span class="rounded bg-emerald-100"></span>
+                    <span class="rounded bg-violet-100"></span><span class="rounded bg-orange-100"></span>
+                </div>
+                <p class="text-lg font-bold text-gray-600 mb-1">漫畫會出現在這裡</p>
+                <p class="text-sm text-gray-400">準備故事 → 智慧分段 → 選風格 → 生成</p>
+            </div>
+
+            <div id="resultsArea" class="grid gap-6"></div>
+        </section>
+    </main>
+
+    <!-- 大圖檢視 -->
+    <div id="lightbox" class="hidden fixed inset-0 z-50 bg-gray-950/85 backdrop-blur-sm items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="大圖檢視">
+        <img id="lightboxImg" alt="" class="max-h-[88vh] max-w-full rounded-xl shadow-2xl bg-white">
+        <div id="lightboxCaption" class="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/90 text-sm font-bold bg-black/40 rounded-full px-4 py-1.5"></div>
+        <button id="lightboxClose" class="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white text-lg" aria-label="關閉"><i class="fas fa-xmark"></i></button>
+        <button id="lightboxPrev" class="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white" aria-label="上一張"><i class="fas fa-chevron-left"></i></button>
+        <button id="lightboxNext" class="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 text-white" aria-label="下一張"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <script>
+    'use strict';
+
+    // ================= 設定 =================
+    const API_KEY = ""; // Gemini Canvas 執行時會自動注入，請保持空字串
+    const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+    // 文字任務依序嘗試：先用「詞彙教材一鍵通」已驗證能在 Canvas 運作的模型，不行再換下一個
+    const FAST_TEXT_MODELS = ['gemini-2.5-flash-preview-09-2025', 'gemini-2.5-flash-preview-05-20', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+    const MODELS = {
+        segment: FAST_TEXT_MODELS,                                      // 智慧分段
+        text: FAST_TEXT_MODELS,                                         // 寫故事、逐句簡化
+        image: 'gemini-3.1-flash-image-preview',                        // 生圖與局部修改共用同一模型
+    };
+    // 思考強度：斷句、簡化不需要深度推理，關閉可大幅縮短等待時間
+    const THINKING = { segment: 'off', text: 'off' };
+    const PANELS_PER_PAGE = 6;
+    const MAX_PANELS = 42;
+    const PAGE_INTERVAL_MS = 3000;
+    const PAD_SUFFIX = '（畫面特寫）';
+    const IMAGE_GEN_CONFIG = { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '3:4' } };
+
+    const LOADER_MESSAGES = {
+        segment: ['閱讀整篇故事…', '理解段落與情節…', '尋找自然的斷句點…', '調整為 6 的倍數…'],
+        simplify: ['逐句理解文意…', '換成更好懂的詞彙…', '加強動作與畫面感…', '檢查句數是否對齊…'],
+        story: ['構思故事主角…', '安排起承轉合…', '把故事切成一格一句…', '加上畫面感…'],
+        generate: ['閱讀這 6 格的故事…', '構思角色造型與場景…', '安排分格與構圖…', '描繪線稿…', '上色與光影…', '寫上每一格的文字…', '最後檢查細節…'],
+        edit: ['讀取修改指示…', '鎖定角色與其他格…', '局部重繪中…', '比對前後一致性…', '最後檢查細節…'],
+    };
+    const CELL_COLORS = ['#fde68a', '#fbcfe8', '#bae6fd', '#bbf7d0', '#ddd6fe', '#fed7aa'];
+    const PENCIL_POS = [[27, 18], [73, 18], [27, 50], [73, 50], [27, 82], [73, 82]];
+    const SCRIBBLE_SVG = '<svg class="scribble" viewBox="0 0 60 40" aria-hidden="true"><path d="M4 30 C 12 4, 22 4, 26 22 S 40 38, 46 16 S 56 8, 57 26"/></svg>';
+    const STATUS_LABEL = { waiting: '等待中', drawing: '繪製中', done: '完成', error: '失敗', cancelled: '已取消' };
+
+    // ================= 狀態 =================
+    const state = {
+        segments: [],
+        isSegmented: false,
+        preSimplify: null,
+        style: '',
+        pages: [],
+        images: [],
+        pageTurns: [],
+        durations: [],
+        busyCards: new Set(),
+        isGenerating: false,
+        isPaused: false,
+        shouldCancel: false,
+        currentIndex: 0,
+        runId: 0,
+        abortController: null,
+        startedAt: 0,
+    };
+    const cardAnimations = new Map();
+    let lightboxIndex = -1;
+
+    const el = Object.fromEntries([
+        'modeSelectionArea', 'btnOwnStory', 'btnAiStory', 'aiGenerationArea', 'aiTopicInput', 'aiPanelCount',
+        'generateStoryBtn', 'storyLoader', 'inputArea', 'storyInput', 'textLoader', 'lineCounter', 'smartSegmentBtn',
+        'stepStatusText', 'simplifyDecisionArea', 'btnNoSimplify', 'btnDoSimplify', 'loadSampleBtn', 'generateBtn',
+        'progressSection', 'progressText', 'progressPercentage', 'progressBar', 'progressMeta', 'pageChips',
+        'controlButtons', 'pauseBtn', 'resumeBtn', 'cancelBtn', 'exportBar', 'downloadAllBtn', 'exportPdfBtn', 'emptyState',
+        'resultsArea', 'resultsCount', 'stepper', 'lightbox', 'lightboxImg', 'lightboxCaption', 'lightboxClose',
+        'lightboxPrev', 'lightboxNext',
+    ].map(id => [id, document.getElementById(id)]));
+
+    const DECISION_DEFAULTS = {
+        no: { className: el.btnNoSimplify.className, html: el.btnNoSimplify.innerHTML },
+        do: { className: el.btnDoSimplify.className, html: el.btnDoSimplify.innerHTML },
+    };
+
+    const STATUS = {
+        idle: '<i class="fas fa-arrow-left text-indigo-500 mr-1 hidden md:inline"></i><i class="fas fa-arrow-up text-indigo-500 mr-1 md:hidden"></i>貼上故事後，點擊「AI 智慧分段」',
+        empty: '<i class="fas fa-info-circle text-gray-400 mr-1"></i>請在上方貼上或輸入故事內容',
+        changed: '<i class="fas fa-info-circle text-indigo-500 mr-1"></i>內容已變更，請重新點擊「AI 智慧分段」',
+    };
+
+    // ================= 工具函式 =================
+    const show = (node, display) => { node.classList.remove('hidden'); if (display) node.classList.add(display); };
+    const hide = (node, display) => { node.classList.add('hidden'); if (display) node.classList.remove(display); };
+    const isAbort = err => err?.name === 'AbortError';
+    const fmtSec = s => (s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${String(s % 60).padStart(2, '0')} 秒`);
+    const today = () => new Date().toLocaleDateString('sv');
+    const getStyle = () => document.querySelector('input[name="artStyle"]:checked')?.value || '';
+
+    function delay(ms, signal) {
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(resolve, ms);
+            signal?.addEventListener('abort', () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+            }, { once: true });
+        });
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const NUMBER_PREFIX = /^\s*(?:第\s*\d+\s*[格句行][:：]?|\d+\s*[.、:：)）]|[-*•])\s*/;
+    function parseLines(text, { stripNumbering = false } = {}) {
+        return String(text)
+            .split(/\r?\n/)
+            .map(l => (stripNumbering ? l.replace(NUMBER_PREFIX, '') : l).trim())
+            .filter(Boolean);
+    }
+
+    function padToMultiple(lines, size = PANELS_PER_PAGE) {
+        const result = [...lines];
+        const last = result[result.length - 1] || '故事繼續…';
+        while (result.length % size !== 0) result.push(last + PAD_SUFFIX);
+        return result;
+    }
+
+    // 把句數調整成最接近的 6 的倍數：太少就在標點處拆長句，太多就合併最短的相鄰兩句。
+    // 全程只切分／合併原文，不改字、不重複補句。
+    const SPLIT_AFTER = /[，、；：。！？,;:!?]/;
+    function balanceToMultiple(lines, size = PANELS_PER_PAGE) {
+        const result = lines.filter(Boolean);
+        if (!result.length || result.length % size === 0) return result;
+        const down = Math.floor(result.length / size) * size;
+        const up = down + size;
+        const target = down >= size && result.length - down < up - result.length ? down : up;
+
+        // 找到最靠近中間的標點切點（不切在句尾、兩邊都要有內容）
+        const bestSplit = text => {
+            let best = -1;
+            for (let i = 1; i < text.length - 1; i++) {
+                if (SPLIT_AFTER.test(text[i]) && (best < 0 || Math.abs(i + 1 - text.length / 2) < Math.abs(best + 1 - text.length / 2))) best = i;
+            }
+            return best < 0 ? Math.floor(text.length / 2) - 1 : best;
+        };
+
+        while (result.length < target) {
+            let pick = -1;
+            result.forEach((t, i) => { if (t.length >= 6 && (pick < 0 || t.length > result[pick].length)) pick = i; });
+            if (pick < 0) break; // 每句都太短，無法再拆
+            const cut = bestSplit(result[pick]);
+            result.splice(pick, 1, result[pick].slice(0, cut + 1), result[pick].slice(cut + 1));
+        }
+        while (result.length > target) {
+            let pick = 0;
+            for (let i = 1; i < result.length - 1; i++) {
+                if (result[i].length + result[i + 1].length < result[pick].length + result[pick + 1].length) pick = i;
+            }
+            result.splice(pick, 2, result[pick] + result[pick + 1]);
+        }
+        return result;
+    }
+
+    function fitToCount(lines, count, fallback = []) {
+        const result = lines.slice(0, count);
+        while (result.length < count) {
+            result.push(fallback[result.length] ?? (result[result.length - 1] || '故事繼續…') + PAD_SUFFIX);
+        }
+        return result;
+    }
+
+    function chunk(arr, size) {
+        const out = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+    }
+
+    function dataUrlToBlob(dataUrl) {
+        const [meta, b64] = dataUrl.split(',');
+        const mime = meta.match(/data:(.*?);/)?.[1] || 'image/png';
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new Blob([bytes], { type: mime });
+    }
+    const extOf = mime => ({ 'image/jpeg': 'jpg', 'image/webp': 'webp' }[mime] || 'png');
+
+    function saveBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function showToast(message, type = 'info') {
+        document.getElementById('appToast')?.remove();
+        const colors = { info: 'bg-indigo-600', warning: 'bg-amber-600', error: 'bg-rose-600', success: 'bg-emerald-600' };
+        const icons = { info: 'fa-circle-info', warning: 'fa-triangle-exclamation', error: 'fa-circle-xmark', success: 'fa-circle-check' };
+
+        const toast = document.createElement('div');
+        toast.id = 'appToast';
+        toast.setAttribute('role', 'status');
+        toast.className = `fixed top-6 left-1/2 z-[60] max-w-[90vw] px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-bold text-white toast-enter ${colors[type] || colors.info}`;
+        toast.style.transform = 'translateX(-50%)';
+        const icon = document.createElement('i');
+        icon.className = `fas ${icons[type] || icons.info}`;
+        const span = document.createElement('span');
+        span.textContent = message;
+        toast.append(icon, span);
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translate(-50%, -15px)';
+            setTimeout(() => toast.remove(), 400);
+        }, type === 'error' ? 5000 : 3200);
+    }
+
+    function flash(node, classes, ms = 800) {
+        node.classList.add(...classes);
+        setTimeout(() => node.classList.remove(...classes), ms);
+    }
+
+    function setBusy(btn, busy, busyHtml) {
+        if (busy) {
+            btn.dataset.html = btn.innerHTML;
+            btn.innerHTML = busyHtml;
+        } else if (btn.dataset.html) {
+            btn.innerHTML = btn.dataset.html;
+            delete btn.dataset.html;
+        }
+        btn.disabled = busy;
+        btn.classList.toggle('is-busy', busy);
+    }
+
+    // 每秒執行一次，回傳停止函式
+    function startTicker(fn, ms = 1000) {
+        const start = Date.now();
+        const run = () => fn(Math.floor((Date.now() - start) / 1000));
+        run();
+        const timer = setInterval(run, ms);
+        return () => clearInterval(timer);
+    }
+
+    function swapText(node, text) {
+        if (node.textContent === text) return;
+        node.textContent = text;
+        node.classList.remove('msg-swap');
+        void node.offsetWidth; // 重新觸發動畫
+        node.classList.add('msg-swap');
+    }
+
+    // ================= 步驟列 =================
+    function setStep(active) {
+        el.stepper.querySelectorAll('.step').forEach(node => {
+            const n = Number(node.dataset.step);
+            const status = n < active ? 'done' : n === active ? 'active' : 'todo';
+            node.dataset.state = status;
+            node.querySelector('.step-dot').innerHTML = status === 'done' ? '<i class="fas fa-check"></i>' : n;
+        });
+        el.stepper.querySelectorAll('.step-line').forEach(line => {
+            line.dataset.state = Number(line.dataset.line) < active ? 'done' : 'todo';
+        });
+    }
+
+    // ================= 文字任務的等待動畫 =================
+    function textLoaderMarkup() {
+        const lines = [92, 76, 88, 62, 84].map((w, i) => `<span style="width:${w}%;--i:${i}"></span>`).join('');
+        return `<div class="text-loader-lines" aria-hidden="true">${lines}</div>
+            <div class="flex items-center gap-2.5 text-indigo-700 font-bold"><span class="dots"><i></i><i></i><i></i></span><span data-msg></span></div>
+            <div class="text-xs text-gray-400 tabular-nums" data-elapsed></div>
+            <div class="w-full max-w-md text-left text-sm text-gray-600 leading-relaxed whitespace-pre-line hidden" data-preview></div>`;
+    }
+    el.textLoader.innerHTML = textLoaderMarkup();
+    el.storyLoader.innerHTML = textLoaderMarkup();
+
+    function startTextLoader(root, messages) {
+        show(root, 'flex');
+        const msg = root.querySelector('[data-msg]');
+        const elapsed = root.querySelector('[data-elapsed]');
+        const stop = startTicker(sec => {
+            swapText(msg, messages[Math.min(messages.length - 1, Math.floor(sec / 3))]);
+            elapsed.textContent = `已經過 ${fmtSec(sec)}`;
+        });
+        return () => {
+            stop();
+            hide(root, 'flex');
+            const preview = root.querySelector('[data-preview]');
+            preview.textContent = '';
+            hide(preview);
+        };
+    }
+
+    // ================= Gemini API =================
+    function thinkingConfig(model, level) {
+        if (!level) return undefined;
+        if (model.startsWith('gemini-3')) return { thinkingLevel: level === 'off' ? 'minimal' : level };
+        if (model.startsWith('gemini-2.5-flash')) return { thinkingBudget: level === 'off' ? 0 : 1024 };
+        return undefined;
+    }
+
+    const isModelUnavailable = (status, message = '') =>
+        status === 404 || (status === 400 && /model|not (found|supported)/i.test(message));
+
+    async function callGemini(model, body, { signal, retries = 3, extract } = {}) {
+        const url = `${API_BASE}/${model}:generateContent?key=${API_KEY}`;
+        let wait = 2000;
+        for (let attempt = 1; ; attempt++) {
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const err = new Error(data.error?.message || `API 錯誤：${res.status}`);
+                    err.retryable = res.status === 429 || res.status >= 500;
+                    err.modelUnavailable = isModelUnavailable(res.status, err.message);
+                    throw err;
+                }
+                if (data.promptFeedback?.blockReason) {
+                    const err = new Error('內容被安全機制阻擋，請調整文字後再試');
+                    err.retryable = false;
+                    throw err;
+                }
+                return extract ? extract(data) : data;
+            } catch (err) {
+                if (isAbort(err) || err.retryable === false || attempt >= retries) throw err;
+                console.warn(`[${model}] 第 ${attempt} 次失敗，${wait / 1000} 秒後重試`, err);
+                await delay(wait, signal);
+                wait *= 2;
+            }
+        }
+    }
+
+    const textOf = data => (data?.candidates?.[0]?.content?.parts || [])
+        .filter(p => p.text && !p.thought)
+        .map(p => p.text)
+        .join('');
+
+    function textRequestBody(model, systemPrompt, userText, temperature, thinking) {
+        const generationConfig = { temperature };
+        const tc = thinkingConfig(model, thinking);
+        if (tc) generationConfig.thinkingConfig = tc;
+        return {
+            contents: [{ role: 'user', parts: [{ text: userText }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig,
+        };
+    }
+
+    // 串流版：文字一邊產生一邊顯示；串流不可用時自動改用一般請求
+    async function generateText(model, systemPrompt, userText, { temperature = 0.7, thinking, onText, signal } = {}) {
+        const body = textRequestBody(model, systemPrompt, userText, temperature, thinking);
+
+        if (onText) {
+            try {
+                const res = await fetch(`${API_BASE}/${model}:streamGenerateContent?alt=sse&key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal,
+                });
+                if (!res.ok || !res.body) {
+                    const err = new Error(`stream ${res.status}`);
+                    // 模型本身不存在就不用再試一般請求，直接交給下一個模型
+                    if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        err.message = data.error?.message || err.message;
+                        err.modelUnavailable = isModelUnavailable(res.status, err.message);
+                    }
+                    throw err;
+                }
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let full = '';
+                for (;;) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    let nl;
+                    while ((nl = buffer.indexOf('\n')) >= 0) {
+                        const line = buffer.slice(0, nl).trim();
+                        buffer = buffer.slice(nl + 1);
+                        if (!line.startsWith('data:')) continue;
+                        try {
+                            const piece = textOf(JSON.parse(line.slice(5)));
+                            if (piece) { full += piece; onText(full); }
+                        } catch { /* 不完整的片段略過 */ }
+                    }
+                }
+                if (full.trim()) return full.trim();
+                throw new Error('stream empty');
+            } catch (err) {
+                if (err.modelUnavailable || isAbort(err)) throw err;
+                console.warn('串流失敗，改用一般請求：', err);
+            }
+        }
+
+        return callGemini(model, body, {
+            signal,
+            retries: 2,
+            extract: data => {
+                const text = textOf(data).trim();
+                if (!text) throw new Error('AI 沒有回傳文字內容');
+                return text;
+            },
+        });
+    }
+
+    // 依序嘗試模型清單；遇到「模型不存在／不支援」才換下一個，並記住不要再試
+    const unavailableModels = new Set();
+    const TEXT_TIMEOUT_MS = 35000; // 單一模型超過這個時間就放棄，換下一個
+    async function generateTextFast(models, systemPrompt, userText, options) {
+        let lastError;
+        for (const model of models) {
+            if (unavailableModels.has(model)) continue;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), TEXT_TIMEOUT_MS);
+            try {
+                return await generateText(model, systemPrompt, userText, { ...options, signal: controller.signal });
+            } catch (err) {
+                const timedOut = isAbort(err);
+                if (!err.modelUnavailable && !timedOut) throw err;
+                console.warn(`${model} ${timedOut ? '逾時' : '無法使用'}，改用下一個模型：`, err.message);
+                if (!timedOut) unavailableModels.add(model);
+                lastError = timedOut ? new Error('AI 回應逾時，請稍後再試') : err;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        throw lastError || new Error('目前沒有可用的文字模型');
+    }
+
+    function extractImage(data) {
+        const content = data?.candidates?.[0]?.content;
+        const part = content?.parts?.find(p => p.inlineData);
+        if (!part) throw new Error('AI 沒有回傳圖片（可能被安全機制過濾）');
+        return {
+            imageUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+            modelTurn: content,
+        };
+    }
+
+    // ================= 畫面切換 =================
+    function showView(name) {
+        el.modeSelectionArea.classList.toggle('hidden', name !== 'mode');
+        el.aiGenerationArea.classList.toggle('hidden', name !== 'ai');
+        el.inputArea.classList.toggle('hidden', name !== 'input');
+    }
+
+    el.btnOwnStory.addEventListener('click', () => { showView('input'); el.storyInput.focus(); });
+    el.btnAiStory.addEventListener('click', () => { showView('ai'); el.aiTopicInput.focus(); });
+    document.querySelectorAll('[data-back]').forEach(btn => btn.addEventListener('click', () => showView('mode')));
+
+    for (let n = PANELS_PER_PAGE; n <= MAX_PANELS; n += PANELS_PER_PAGE) {
+        el.aiPanelCount.add(new Option(`${n} 格（${n / PANELS_PER_PAGE} 張圖）`, n));
+    }
+
+    // ================= 分段狀態 =================
+    function setStatus(html) { el.stepStatusText.innerHTML = html; }
+    function setGenerateEnabled(enabled) { el.generateBtn.disabled = !enabled; }
+
+    function updateLineCounter() {
+        const text = el.storyInput.value;
+        if (!state.isSegmented) {
+            el.lineCounter.textContent = `${text.length} / 3000 字`;
+            el.lineCounter.dataset.level = '';
+            return;
+        }
+        const count = parseLines(text).length;
+        const pages = Math.ceil(count / PANELS_PER_PAGE);
+        const padding = (PANELS_PER_PAGE - (count % PANELS_PER_PAGE)) % PANELS_PER_PAGE;
+        let msg = `共 ${count} 格 → ${pages} 張圖`;
+        if (padding) {
+            const down = Math.floor(count / PANELS_PER_PAGE) * PANELS_PER_PAGE;
+            const target = down >= PANELS_PER_PAGE && count - down < PANELS_PER_PAGE - padding ? down : down + PANELS_PER_PAGE;
+            msg += `（不是 6 的倍數，生成時會自動${target > count ? '拆分' : '合併'}成 ${target} 格）`;
+        }
+        if (count > MAX_PANELS) msg += `｜超過上限 ${MAX_PANELS} 格，請刪減`;
+        el.lineCounter.textContent = msg;
+        el.lineCounter.dataset.level = count > MAX_PANELS ? 'error' : padding ? 'warn' : 'ok';
+    }
+
+    function resetDecisionButtons() {
+        state.preSimplify = null;
+        for (const [key, btn] of [['no', el.btnNoSimplify], ['do', el.btnDoSimplify]]) {
+            btn.className = DECISION_DEFAULTS[key].className;
+            btn.innerHTML = DECISION_DEFAULTS[key].html;
+            btn.disabled = false;
+        }
+    }
+
+    function resetSegmentationState(statusHtml = STATUS.changed) {
+        state.isSegmented = false;
+        state.segments = [];
+        resetDecisionButtons();
+        hide(el.simplifyDecisionArea);
+        setGenerateEnabled(false);
+        setStatus(statusHtml);
+        updateLineCounter();
+        if (!state.isGenerating) setStep(el.storyInput.value.trim() ? 2 : 1);
+    }
+
+    function setSegments(lines) {
+        state.segments = lines;
+        el.storyInput.value = lines.join('\n');
+        updateLineCounter();
+    }
+
+    function applySegments(lines, statusHtml) {
+        state.isSegmented = true;
+        setSegments(lines);
+        resetDecisionButtons();
+        show(el.simplifyDecisionArea);
+        if (!state.isGenerating) {
+            setGenerateEnabled(true);
+            setStep(3);
+        }
+        setStatus(statusHtml);
+        flash(el.storyInput, ['flash-indigo']);
+    }
+
+    el.storyInput.addEventListener('input', () => {
+        const text = el.storyInput.value.trim();
+        if (!text) {
+            resetSegmentationState(STATUS.empty);
+            return;
+        }
+        if (state.isSegmented) {
+            state.segments = parseLines(text);
+            setStatus(`<span class="text-indigo-600 font-bold"><i class="fas fa-pen-to-square mr-1"></i>已手動修正內容（共 ${state.segments.length} 格）</span>`);
+            if (!state.isGenerating) setGenerateEnabled(state.segments.length > 0);
+        } else {
+            setStatus(STATUS.idle);
+            if (!state.isGenerating) setStep(2);
+        }
+        updateLineCounter();
+    });
+
+    // 串流時把目前收到的內容即時顯示在文字框
+    function streamIntoTextarea(stopLoader) {
+        let first = true;
+        return text => {
+            if (first) {
+                first = false;
+                stopLoader();
+                el.storyInput.classList.add('is-streaming');
+            }
+            const lines = parseLines(text, { stripNumbering: true });
+            el.storyInput.value = lines.join('\n');
+            el.storyInput.scrollTop = el.storyInput.scrollHeight;
+            setStatus(`<span class="text-indigo-600 font-bold"><span class="dots mr-2 align-middle"><i></i><i></i><i></i></span>AI 正在寫入… 已完成 ${lines.length} 句</span>`);
+        };
+    }
+
+    // ================= 智慧分段 =================
+    async function runSemanticSegmentation(rawText, onText) {
+        const instruction = `你是一位專業的六格漫畫文本分鏡師。
+使用者會提供一段原始故事文本。你的任務是進行「純斷句分鏡」，絕對不能改寫、精簡、更動或替換作者原本的文字！
+
+【嚴格規則】：
+1. 【絕對忠於原文（極度重要）】：
+   - 絕對「不可以」修改、潤飾、重組、添加、替換或刪除原本文章中的任何文字與用詞！
+   - 原文的字句內容與語意必須 100% 完整保留，你的工作「只有切分斷句」。
+2. 【僅允許整理以下非內文雜訊】：
+   - 移除段落編號或標題序號（例如：㈠、一、二、三、四、1. 等）。
+   - 移除腳註註釋標號（例如：①、②、③、④ 等）。
+   - 移除注音或拼音符號（例如：「（ㄒㄧ）」等）。
+3. 【六格漫畫分鏡切分（最重要！）】：
+   - 總句數必須剛好是「6 的倍數」（例如 6、12、18、24、30、36 句，上限 ${MAX_PANELS} 句）。
+   - 依照原文文意自然順暢地切分。若不是 6 的倍數，請將較長的句子再切細，或將過短的句子合併，確保最後行數是 6 的倍數。
+   - 每一行代表一格漫畫的分鏡畫面，且應是一個能被畫出來的具體場景。
+4. 【輸出格式】：
+   - 繁體中文，每一句話佔獨立一行（換行分隔）。
+   - 嚴格禁止加入任何標籤、序號、前言或後語。`;
+
+        const text = await generateTextFast(
+            MODELS.segment,
+            instruction,
+            `請將以下故事進行純原文分鏡斷句，且總行數必須嚴格控制為 6 的倍數：\n\n${rawText}`,
+            { temperature: 0.2, thinking: THINKING.segment, onText },
+        );
+        return padToMultiple(balanceToMultiple(parseLines(text, { stripNumbering: true })));
+    }
+
+    el.smartSegmentBtn.addEventListener('click', async () => {
+        const rawText = el.storyInput.value.trim();
+        if (!rawText) {
+            showToast('請先輸入或貼上故事內容！', 'warning');
+            el.storyInput.focus();
+            return;
+        }
+
+        setBusy(el.smartSegmentBtn, true, '<i class="fas fa-brain fa-beat-fade"></i> 分析中…');
+        el.storyInput.readOnly = true;
+        setStep(2);
+        const stopLoader = startTextLoader(el.textLoader, LOADER_MESSAGES.segment);
+        try {
+            const lines = await runSemanticSegmentation(rawText, streamIntoTextarea(stopLoader));
+            const pages = Math.ceil(lines.length / PANELS_PER_PAGE);
+            applySegments(lines, `<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle mr-1"></i>分段完成！共 ${lines.length} 格（${pages} 張圖）</span>`);
+            el.simplifyDecisionArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (lines.length > MAX_PANELS) {
+                showToast(`分段結果有 ${lines.length} 格，超過上限 ${MAX_PANELS} 格，請手動刪減後再生成`, 'warning');
+            } else {
+                showToast(`已切分為 ${lines.length} 格！`, 'success');
+            }
+        } catch (err) {
+            console.error('AI 分段失敗:', err);
+            el.storyInput.value = rawText; // 失敗時還原原文
+            setStatus(STATUS.idle);
+            showToast('AI 智慧分段失敗，請稍後再試：' + err.message, 'error');
+        } finally {
+            stopLoader();
+            el.storyInput.readOnly = false;
+            el.storyInput.classList.remove('is-streaming');
+            setBusy(el.smartSegmentBtn, false);
+        }
+    });
+
+    // ================= 逐句簡化（可復原） =================
+    el.btnNoSimplify.addEventListener('click', startGeneration);
+
+    el.btnDoSimplify.addEventListener('click', async () => {
+        if (state.preSimplify) {
+            const original = state.preSimplify;
+            applySegments(original, `<span class="text-indigo-600 font-bold"><i class="fas fa-rotate-left mr-1"></i>已復原為簡化前的句子（共 ${original.length} 格）</span>`);
+            showToast('已復原為原本的句子', 'info');
+            return;
+        }
+
+        const currentLines = parseLines(el.storyInput.value);
+        if (!currentLines.length) {
+            showToast('請先完成分段！', 'warning');
+            return;
+        }
+
+        const n = currentLines.length;
+        const instruction = `你是一位幼兒與特教繪本編輯。
+使用者會提供已分好鏡頭的 ${n} 句故事。
+請將「每一句」進行文意簡化，使其詞彙更平易近人、簡潔明確、富含動作與畫面感，非常適合特教學童理解。
+【規則】：
+1. 輸出句子總數必須「剛好 ${n} 句」，絕對不能增加或減少行數，也不能合併或拆開句子！
+2. 第 N 行對應原本的第 N 格分鏡。
+3. 繁體中文（台灣用語），換行分隔，不可輸出序號或額外解說。`;
+
+        setBusy(el.btnDoSimplify, true, '<i class="fas fa-feather-pointed fa-bounce"></i> 簡化中…');
+        el.storyInput.readOnly = true;
+        const stopLoader = startTextLoader(el.textLoader, LOADER_MESSAGES.simplify);
+        try {
+            const text = await generateTextFast(MODELS.text, instruction, `請逐句簡化以下 ${n} 句分鏡：\n\n${currentLines.join('\n')}`, {
+                temperature: 0.5,
+                thinking: THINKING.text,
+                onText: streamIntoTextarea(stopLoader),
+            });
+            const simplified = parseLines(text, { stripNumbering: true });
+            if (simplified.length !== n) {
+                showToast(`AI 回傳 ${simplified.length} 句（應為 ${n} 句），已自動對齊，請檢查內容`, 'warning');
+            } else {
+                showToast('文句簡化完成！可以立即生成漫畫', 'success');
+            }
+
+            setBusy(el.btnDoSimplify, false);
+            setSegments(fitToCount(simplified, n, currentLines));
+            state.preSimplify = currentLines;
+            setStatus(`<span class="text-purple-600 font-bold"><i class="fas fa-check-circle mr-1"></i>已完成逐句簡化！</span> <span class="text-gray-400">（共 ${n} 格）</span>`);
+            setStep(4);
+
+            el.btnDoSimplify.className = DECISION_DEFAULTS.do.className.replace('btn-purple', 'btn-muted');
+            el.btnDoSimplify.innerHTML = '<i class="fas fa-rotate-left"></i><span>復原為原句</span>';
+            el.btnNoSimplify.className = DECISION_DEFAULTS.no.className.replace('btn-success', 'btn-primary btn-glow');
+            el.btnNoSimplify.innerHTML = '<i class="fas fa-magic"></i><span>簡化完成，立即生成漫畫</span>';
+
+            flash(el.storyInput, ['flash-purple']);
+        } catch (err) {
+            console.error('逐句簡化失敗:', err);
+            el.storyInput.value = currentLines.join('\n');
+            showToast('逐句簡化失敗：' + err.message, 'error');
+            setBusy(el.btnDoSimplify, false);
+        } finally {
+            stopLoader();
+            el.storyInput.readOnly = false;
+            el.storyInput.classList.remove('is-streaming');
+            updateLineCounter();
+        }
+    });
+
+    // ================= 範例 =================
+    el.loadSampleBtn.addEventListener('click', () => {
+        el.storyInput.value = `㈠ 手的故事
+一　我曾有過一雙美麗的手。白皙（ㄒㄧ）柔軟，十指纖纖①，許多人都羨慕、讚賞過，我也深以擁有這樣一雙手為榮。然而，曾幾何時，十指的關節一個個在病魔的侵蝕下逐漸腫大、彎曲、僵硬，變得古怪而醜陋。望著這雙不再美麗的手，我常不免黯然神傷②！
+二　直到我聽到一則有關手的故事。德國的大藝術家杜瑞，從小就有天分，然因家貧，無力拜師，只有去做學徒，他和另一學徒極其友好，兩人都有志到巴黎去學雕塑，卻都限於環境，難展抱負③。最後兩人商議，由其中一人做工供另一人留學進修，學成後再彼此交換。對方讓杜瑞先去，可是，幾年後當杜瑞功成名就④歸來時，卻發現朋友的一雙手因長年的粗活變得粗糙笨拙，再也無法做精細的雕塑了，杜瑞為之痛心不已。但就在當天夜裡，他卻聽見好友這樣的禱告：「主啊！感謝你，當初先去的是杜瑞。」杜瑞捧著這雙為他犧牲的手，感動得流下淚來。他把這雙手畫了出來，這就是那幅名畫〈祈禱的手〉的來歷。
+三　蔣故總統經國先生也曾提到，在他小時，蔣公常常訓示他，做人不要掌心向上，向人乞憐，要隨時不忘掌心向下，給人幫助救援。這兩個故事給我極深的啟示。
+四　雖然我的手不再美麗，但我希望它多學習一點付出的功課，在別人危難時及時伸出援手，但願這也是一雙懂得安慰的手，禱告的手。那麼，就是它的外表再醜點又有什麼關係呢？`;
+
+        resetSegmentationState(`<span class="text-indigo-600 font-bold"><i class="fas fa-hand-point-left mr-1 hidden md:inline"></i><i class="fas fa-hand-point-up mr-1 md:hidden"></i>已載入《手的故事》！請點擊「AI 智慧分段」</span>`);
+        flash(el.storyInput, ['flash-indigo'], 500);
+        flash(el.smartSegmentBtn, ['attention'], 1800);
+        showToast('已載入《手的故事》原文！', 'info');
+    });
+
+    // ================= AI 寫故事 =================
+    async function generateStoryFromTopic() {
+        const topic = el.aiTopicInput.value.trim();
+        const panelCount = parseInt(el.aiPanelCount.value, 10);
+        if (!topic) {
+            showToast('請先輸入故事主題！', 'warning');
+            el.aiTopicInput.focus();
+            return;
+        }
+
+        const systemPrompt = `你是一個專門為特教學生寫兒童繪本故事的作家。請根據使用者提供的主題，寫一個「剛好包含 ${panelCount} 個句子」的故事。
+這個故事要用來生成 ${panelCount} 格的漫畫（每 6 句一張圖），請嚴格確保總共只有 ${panelCount} 句。
+每個句子需要簡短、具體、富有畫面感，且有清楚的起承轉合。主角的外觀請在第一句就描述清楚（例如顏色、服裝），方便畫面保持一致。
+請使用繁體中文（台灣用語），不要包含標題、對話說明或解釋，直接輸出故事內容。每一句用換行分開，不要加編號。`;
+
+        setBusy(el.generateStoryBtn, true, '<i class="fas fa-wand-magic-sparkles fa-shake"></i> 創作中…');
+        const stopLoader = startTextLoader(el.storyLoader, LOADER_MESSAGES.story);
+        const preview = el.storyLoader.querySelector('[data-preview]');
+        try {
+            const text = await generateTextFast(MODELS.text, systemPrompt, `請為這個主題寫一個剛好 ${panelCount} 句話的短篇故事：${topic}`, {
+                temperature: 0.9,
+                thinking: THINKING.text,
+                onText: partial => {
+                    show(preview);
+                    preview.textContent = parseLines(partial, { stripNumbering: true }).join('\n');
+                },
+            });
+            let lines = parseLines(text, { stripNumbering: true });
+            if (lines.length !== panelCount) {
+                showToast(`AI 寫了 ${lines.length} 句，已自動調整為 ${panelCount} 句，請檢查結尾`, 'warning');
+                lines = fitToCount(lines, panelCount);
+            } else {
+                showToast('故事完成！可以直接生圖或先簡化', 'success');
+            }
+            showView('input');
+            applySegments(lines, `<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle mr-1"></i>AI 故事完成（${lines.length} 格）</span>`);
+        } catch (err) {
+            console.error('生成故事失敗:', err);
+            showToast('生成故事失敗，請稍後再試：' + err.message, 'error');
+        } finally {
+            stopLoader();
+            setBusy(el.generateStoryBtn, false);
+        }
+    }
+
+    el.generateStoryBtn.addEventListener('click', generateStoryFromTopic);
+    el.aiTopicInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.isComposing && !el.generateStoryBtn.disabled) generateStoryFromTopic();
+    });
+
+    // ================= 生圖：提示詞與對話脈絡 =================
+    function buildPagePrompt(lines, style, index, total) {
+        const panels = lines
+            .map((t, i) => `［第 ${i + 1} 格］\n- 畫面內容：${t}\n- 畫在圖上的字：「${t}」`)
+            .join('\n\n');
+
+        const continuity = index === 0
+            ? '這是整個故事的第一張漫畫，請清楚確立主角與主要角色的外觀（臉型、髮型、髮色、服裝配色、體型、配件），後續每一張都會沿用。'
+            : `這是連貫故事的第 ${index + 1}/${total} 張。請以前面對話中已生成的漫畫作為角色參考，主角的臉型、髮型、服裝配色與畫風必須保持一致（除非文本明確提到年齡、時間或服裝改變）。`;
+
+        return `請生成一張「六格漫畫」圖片。
+
+【版面】直式 3:4 畫面，分成 3 列 × 2 欄共六格。閱讀順序由左至右、由上而下：第 1、2 格在第一列，第 3、4 格在第二列，第 5、6 格在第三列。格與格之間用清楚的白色間隔分開。
+【風格】${style}。
+【角色】請從故事文本判斷主角與相關人物的外貌，並維持高辨識度。若文本提及「小時候」「長大」「老去」等狀態改變，可合理調整年齡與身型，只要讀者能認出是同一人即可。
+【文字】每一格內都要用清楚的文字框寫上對應句子（繁體中文，字跡清晰、不可有錯字）。只寫句子本身，「絕對不要」寫出「第1格」之類的編號前綴。
+【一致性】${continuity}
+
+${panels}`;
+    }
+
+    function buildReferenceContext(index) {
+        if (index === 0) return [];
+        const context = [...(state.pageTurns[0] || [])];
+        if (index - 1 > 0) context.push(...(state.pageTurns[index - 1] || []));
+        return context;
+    }
+
+    function trimTurns(turns) {
+        return turns.length > 4 ? [...turns.slice(0, 2), ...turns.slice(-2)] : turns;
+    }
+
+    async function generatePage(index, signal) {
+        const prompt = buildPagePrompt(state.pages[index], state.style, index, state.pages.length);
+        const userTurn = { role: 'user', parts: [{ text: prompt }] };
+        const { imageUrl, modelTurn } = await callGemini(MODELS.image, {
+            contents: [...buildReferenceContext(index), userTurn],
+            generationConfig: IMAGE_GEN_CONFIG,
+        }, { signal, extract: extractImage });
+        state.pageTurns[index] = [userTurn, modelTurn];
+        return imageUrl;
+    }
+
+    async function editPage(index, instruction) {
+        const base = state.pageTurns[index] || [];
+        const userTurn = {
+            role: 'user',
+            parts: [{ text: `【局部修改指示】請針對你上方剛生成的這張圖片進行局部修改：「${instruction}」。
+
+【極度重要】
+1. 主角原本的長相、特徵、服裝細節（例如帽子形狀、衣服材質、配件）必須「完全一模一樣」。
+2. 沒有被提到要修改的格子，請務必保持原樣，包含格子裡的文字。
+3. 這是局部微調，請不要重新設計角色、改變版面或畫風。` }],
+        };
+        const { imageUrl, modelTurn } = await callGemini(MODELS.image, {
+            contents: [...base, userTurn],
+            generationConfig: IMAGE_GEN_CONFIG,
+        }, { extract: extractImage });
+        state.pageTurns[index] = trimTurns([...base, userTurn, modelTurn]);
+        return imageUrl;
+    }
+
+    // ================= 卡片 UI =================
+    const cardPart = (index, part) => document.getElementById(`${part}-${index}`);
+
+    function setPageStatus(index, status) {
+        const chip = el.pageChips.querySelector(`[data-chip="${index}"]`);
+        if (chip) {
+            chip.dataset.status = status;
+            chip.title = `圖 ${index + 1}：${STATUS_LABEL[status]}`;
+            chip.innerHTML = status === 'done' ? `<i class="fas fa-check text-[10px]"></i>${index + 1}` : index + 1;
+        }
+        const badge = cardPart(index, 'badge');
+        if (badge) {
+            badge.dataset.status = status;
+            badge.textContent = STATUS_LABEL[status];
+        }
+    }
+
+    function stopCardAnimation(index) {
+        cardAnimations.get(index)?.();
+        cardAnimations.delete(index);
+    }
+
+    function createStoryCard(index, lines, total) {
+        const card = document.createElement('article');
+        card.id = `card-${index}`;
+        card.className = 'card overflow-hidden flex flex-col story-item fade-in';
+        card.style.animationDelay = `${index * 60}ms`;
+        card.innerHTML = `
+            <div class="px-5 sm:px-6 py-4 border-b border-[#eceaf5] bg-gradient-to-r from-indigo-50/70 to-white">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="font-black text-gray-900">圖 ${index + 1} <span class="text-gray-400 font-bold text-sm">/ ${total}</span></span>
+                    <span id="badge-${index}" class="badge" data-status="waiting">等待中</span>
+                </div>
+                <details class="text-sm text-gray-600 mt-2">
+                    <summary class="cursor-pointer select-none text-indigo-600 font-medium hover:text-indigo-800 text-xs">查看本張的 6 格文字</summary>
+                    <ol class="list-decimal pl-5 mt-2 space-y-1 leading-relaxed">${lines.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
+                </details>
+            </div>
+            <div id="img-container-${index}" class="w-full min-h-[420px] flex items-center justify-center bg-[#f7f6fb] relative overflow-hidden"></div>
+            <div id="modify-area-${index}" class="bg-white px-4 py-3 border-t border-[#eceaf5] gap-2 flex-col sm:flex-row hidden">
+                <input type="text" id="modify-input-${index}" data-index="${index}" maxlength="200"
+                       class="flex-grow p-2.5 border-2 border-gray-200 rounded-xl text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 placeholder-gray-400 transition"
+                       placeholder="局部修改？例：把第3格蘋果改成綠色，其他不變（Enter 送出）">
+                <div class="flex gap-2">
+                    <button data-action="modify" data-index="${index}" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i class="fas fa-wand-magic-sparkles"></i> 套用修改
+                    </button>
+                    <button data-action="redraw" data-index="${index}" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap" title="用同樣的文字整張重新繪製">
+                        <i class="fas fa-rotate"></i> 整張重畫
+                    </button>
+                </div>
+            </div>`;
+        return card;
+    }
+
+    function setCardPlaceholder(index, iconClass, text, status) {
+        stopCardAnimation(index);
+        const container = cardPart(index, 'img-container');
+        if (!container) return;
+        container.innerHTML = `
+            <div class="flex flex-col items-center text-gray-400 gap-2">
+                <i class="${iconClass} text-3xl"></i><span class="text-sm font-medium">${escapeHtml(text)}</span>
+            </div>`;
+        hide(cardPart(index, 'modify-area'), 'flex');
+        if (status) setPageStatus(index, status);
+    }
+
+    // 繪製中的動畫：迷你六格逐格「畫好」、鉛筆跟著移動、提示文字輪播
+    function setCardLoading(index, mode = 'generate') {
+        stopCardAnimation(index);
+        const container = cardPart(index, 'img-container');
+        if (!container) return;
+
+        const cells = CELL_COLORS.map(c => `<div class="mini-cell" style="--c:${c}"></div>`).join('');
+        container.innerHTML = `
+            ${state.images[index] ? '<img class="absolute inset-0 w-full h-full object-contain opacity-15 blur-sm" alt="" aria-hidden="true">' : ''}
+            <div class="draw-stage">
+                <div class="mini-board" aria-hidden="true">${cells}<div class="pencil"><i class="fas fa-pencil"></i></div></div>
+                <p class="draw-msg" aria-live="polite"></p>
+                <p class="text-xs text-gray-400 tabular-nums draw-elapsed"></p>
+            </div>`;
+        const backdrop = container.querySelector('img');
+        if (backdrop) backdrop.src = state.images[index];
+
+        const cellNodes = [...container.querySelectorAll('.mini-cell')];
+        const pencil = container.querySelector('.pencil');
+        const msg = container.querySelector('.draw-msg');
+        const elapsed = container.querySelector('.draw-elapsed');
+        const messages = LOADER_MESSAGES[mode];
+        const secPerCell = mode === 'edit' ? 4 : 6;
+        let lastStage = -1;
+
+        const stop = startTicker(sec => {
+            // 最多停在第 6 格「正在畫」，真正完成時才換成圖片，不會假裝已完成
+            const stage = Math.min(5, Math.floor(sec / secPerCell));
+            if (stage !== lastStage) {
+                cellNodes.forEach((cell, i) => {
+                    if (i < stage && !cell.classList.contains('is-done')) {
+                        cell.className = 'mini-cell is-done';
+                        cell.innerHTML = '';
+                    } else if (i === stage) {
+                        cell.className = 'mini-cell is-active';
+                        cell.innerHTML = SCRIBBLE_SVG;
+                    }
+                });
+                const [x, y] = PENCIL_POS[stage];
+                pencil.style.left = `${x}%`;
+                pencil.style.top = `${y}%`;
+                lastStage = stage;
+            }
+            const msgIndex = Math.floor(sec / 5);
+            swapText(msg, msgIndex < messages.length
+                ? messages[msgIndex]
+                : sec > 75 ? '比平常久一點，再稍等一下…' : messages[messages.length - 1]);
+            elapsed.textContent = `已等待 ${fmtSec(sec)}・一張通常需要 20–60 秒`;
+        });
+        cardAnimations.set(index, stop);
+        hide(cardPart(index, 'modify-area'), 'flex');
+        setPageStatus(index, 'drawing');
+    }
+
+    function setCardImage(index, imageUrl) {
+        stopCardAnimation(index);
+        const container = cardPart(index, 'img-container');
+        if (!container) return;
+        container.innerHTML = `
+            <img alt="六格漫畫 第 ${index + 1} 張" data-action="zoom" data-index="${index}" class="w-full h-full object-contain bg-white cursor-zoom-in opacity-0">
+            <div class="absolute bottom-4 right-4 flex gap-2">
+                <button data-action="zoom" data-index="${index}" class="bg-black/50 hover:bg-black/70 text-white w-10 h-10 rounded-full backdrop-blur-sm transition-colors" title="放大檢視" aria-label="放大檢視"><i class="fas fa-expand"></i></button>
+                <button data-action="download" data-index="${index}" class="bg-black/50 hover:bg-black/70 text-white w-10 h-10 rounded-full backdrop-blur-sm transition-colors" title="下載這張圖片" aria-label="下載這張圖片"><i class="fas fa-download"></i></button>
+            </div>`;
+        const img = container.querySelector('img');
+        img.onload = () => img.classList.replace('opacity-0', 'img-reveal');
+        img.src = imageUrl;
+        show(cardPart(index, 'modify-area'), 'flex');
+        setPageStatus(index, 'done');
+    }
+
+    function setCardError(index, message) {
+        stopCardAnimation(index);
+        const container = cardPart(index, 'img-container');
+        if (!container) return;
+        container.innerHTML = `
+            <div class="flex flex-col items-center p-6 text-center">
+                <div class="w-14 h-14 rounded-full bg-rose-100 text-rose-500 grid place-items-center text-2xl mb-3"><i class="fas fa-face-frown"></i></div>
+                <span class="font-bold text-gray-800">這張沒有畫成功</span>
+                <span class="text-xs mt-1 text-gray-500 max-w-md break-words">${escapeHtml(message)}</span>
+                <button data-action="retry" data-index="${index}" class="mt-4 text-sm font-bold bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"><i class="fas fa-rotate-right"></i> 重試這張</button>
+            </div>`;
+        hide(cardPart(index, 'modify-area'), 'flex');
+        setPageStatus(index, 'error');
+    }
+
+    async function renderPage(index, task) {
+        const runId = state.runId;
+        const startedAt = Date.now();
+        state.busyCards.add(index);
+        setCardLoading(index);
+        try {
+            const url = await task();
+            if (runId !== state.runId) return false;
+            state.images[index] = url;
+            state.durations.push(Date.now() - startedAt);
+            setCardImage(index, url);
+            return true;
+        } catch (err) {
+            if (runId !== state.runId) return false;
+            if (isAbort(err)) {
+                state.images[index] ? setCardImage(index, state.images[index]) : setCardPlaceholder(index, 'fas fa-ban', '已取消', 'cancelled');
+                throw err;
+            }
+            console.error(`第 ${index + 1} 張生成失敗:`, err);
+            setCardError(index, err.message || '發生未知錯誤');
+            return false;
+        } finally {
+            state.busyCards.delete(index);
+            updateExportButtons();
+            if (state.pages.length) updateProgress();
+        }
+    }
+
+    async function modifyPage(index) {
+        if (state.busyCards.has(index)) return;
+        const input = cardPart(index, 'modify-input');
+        const instruction = input.value.trim();
+        if (!instruction) {
+            flash(input, ['input-error'], 2000);
+            input.focus();
+            return;
+        }
+
+        const runId = state.runId;
+        const previous = state.images[index];
+        state.busyCards.add(index);
+        setCardLoading(index, 'edit');
+        try {
+            const url = await editPage(index, instruction);
+            if (runId !== state.runId) return;
+            state.images[index] = url;
+            setCardImage(index, url);
+            input.value = '';
+            showToast(`第 ${index + 1} 張已完成修改`, 'success');
+        } catch (err) {
+            if (runId !== state.runId) return;
+            console.error('局部修改失敗:', err);
+            setCardImage(index, previous);
+            showToast('局部修改失敗：' + err.message, 'error');
+        } finally {
+            state.busyCards.delete(index);
+            updateExportButtons();
+        }
+    }
+
+    function retryPage(index) {
+        if (state.busyCards.has(index)) return;
+        if (state.isGenerating && state.isPaused && index === state.currentIndex) {
+            resumeGeneration();
+            return;
+        }
+        renderPage(index, () => generatePage(index)).catch(() => {});
+    }
+
+    function downloadSingle(index) {
+        const url = state.images[index];
+        if (!url) return;
+        const blob = dataUrlToBlob(url);
+        saveBlob(blob, `comic_page_${String(index + 1).padStart(2, '0')}.${extOf(blob.type)}`);
+    }
+
+    el.resultsArea.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const index = Number(btn.dataset.index);
+        const actions = { modify: modifyPage, redraw: retryPage, retry: retryPage, download: downloadSingle, zoom: openLightbox };
+        actions[btn.dataset.action]?.(index);
+    });
+    el.resultsArea.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.isComposing && e.target.matches('input[id^="modify-input-"]')) {
+            modifyPage(Number(e.target.dataset.index));
+        }
+    });
+    el.pageChips.addEventListener('click', e => {
+        const chip = e.target.closest('[data-chip]');
+        if (chip) cardPart(chip.dataset.chip, 'card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    // ================= 大圖檢視 =================
+    function openLightbox(index) {
+        if (!state.images[index]) return;
+        lightboxIndex = index;
+        el.lightboxImg.src = state.images[index];
+        el.lightboxImg.alt = `六格漫畫 第 ${index + 1} 張`;
+        el.lightboxCaption.textContent = `圖 ${index + 1} / ${state.pages.length}`;
+        show(el.lightbox, 'flex');
+        document.body.style.overflow = 'hidden';
+        el.lightboxClose.focus();
+    }
+    function closeLightbox() {
+        hide(el.lightbox, 'flex');
+        document.body.style.overflow = '';
+        lightboxIndex = -1;
+    }
+    function stepLightbox(dir) {
+        for (let j = lightboxIndex + dir; j >= 0 && j < state.images.length; j += dir) {
+            if (state.images[j]) return openLightbox(j);
+        }
+    }
+    el.lightboxClose.addEventListener('click', closeLightbox);
+    el.lightboxPrev.addEventListener('click', e => { e.stopPropagation(); stepLightbox(-1); });
+    el.lightboxNext.addEventListener('click', e => { e.stopPropagation(); stepLightbox(1); });
+    el.lightbox.addEventListener('click', e => { if (e.target === el.lightbox) closeLightbox(); });
+    document.addEventListener('keydown', e => {
+        if (lightboxIndex < 0) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') stepLightbox(-1);
+        if (e.key === 'ArrowRight') stepLightbox(1);
+    });
+
+    // ================= 進度與控制 =================
+    function setBarColor(color) {
+        el.progressBar.dataset.color = color;
+        el.progressPercentage.classList.toggle('text-emerald-600', color === 'green');
+        el.progressPercentage.classList.toggle('text-indigo-600', color !== 'green');
+    }
+
+    function updateProgress(text) {
+        const total = state.pages.length || 1;
+        const done = state.images.filter(Boolean).length;
+        const percent = Math.round((done / total) * 100);
+        el.progressBar.style.width = `${percent}%`;
+        el.progressPercentage.textContent = `${percent}%`;
+        el.resultsCount.textContent = state.pages.length ? `${done} / ${state.pages.length} 張` : '';
+        if (text) el.progressText.textContent = text;
+    }
+
+    function updateProgressMeta() {
+        const spent = Math.floor((Date.now() - state.startedAt) / 1000);
+        const remaining = state.images.filter(x => !x).length;
+        let eta = '';
+        if (state.isPaused) {
+            eta = '・已暫停';
+        } else if (remaining > 0) {
+            const avg = state.durations.length
+                ? state.durations.reduce((a, b) => a + b, 0) / state.durations.length
+                : 35000;
+            const sec = Math.round((avg * remaining + PAGE_INTERVAL_MS * Math.max(0, remaining - 1)) / 1000);
+            eta = `・預估還要約 ${fmtSec(sec)}`;
+        }
+        el.progressMeta.textContent = `已花費 ${fmtSec(spent)}${eta}`;
+    }
+
+    function updateExportButtons() {
+        const hasAny = state.images.some(Boolean);
+        hasAny ? show(el.exportBar, 'flex') : hide(el.exportBar, 'flex');
+    }
+
+    function pauseGeneration(message) {
+        state.isPaused = true;
+        hide(el.pauseBtn, 'flex');
+        show(el.resumeBtn, 'flex');
+        setBarColor('yellow');
+        updateProgress(message || `已暫停（停在第 ${state.currentIndex + 1} 張）`);
+    }
+
+    function resumeGeneration() {
+        if (!state.isGenerating || !state.isPaused) return;
+        state.isPaused = false;
+        hide(el.resumeBtn, 'flex');
+        show(el.pauseBtn, 'flex');
+        setBarColor('indigo');
+        updateProgress(`繼續生成第 ${state.currentIndex + 1}/${state.pages.length} 張…`);
+    }
+
+    async function waitWhilePaused() {
+        while (state.isPaused && !state.shouldCancel) await delay(300);
+    }
+
+    el.pauseBtn.addEventListener('click', () => {
+        if (state.isGenerating && !state.isPaused) pauseGeneration();
+    });
+    el.resumeBtn.addEventListener('click', resumeGeneration);
+    el.cancelBtn.addEventListener('click', () => {
+        if (!state.isGenerating) return;
+        state.shouldCancel = true;
+        state.isPaused = false;
+        state.abortController?.abort();
+    });
+
+    // ================= 主流程 =================
+    function startGeneration() {
+        if (state.isGenerating) return;
+
+        let lines = parseLines(el.storyInput.value);
+        if (!lines.length) {
+            showToast('請輸入文字！不可以是空的喔！', 'warning');
+            el.storyInput.focus();
+            return;
+        }
+        if (!state.isSegmented) {
+            showToast('請先點擊「AI 智慧分段」完成分鏡切割！', 'warning');
+            el.smartSegmentBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            flash(el.smartSegmentBtn, ['attention'], 1800);
+            return;
+        }
+        if (lines.length > MAX_PANELS) {
+            showToast(`故事超過 ${MAX_PANELS} 格的上限囉！目前 ${lines.length} 格，請刪減分鏡內容。`, 'error');
+            return;
+        }
+
+        // 不是 6 的倍數時，先把句子拆分／合併好並寫回文字框，讓使用者看得到實際分鏡
+        if (lines.length % PANELS_PER_PAGE !== 0) {
+            const before = lines.length;
+            lines = balanceToMultiple(lines);
+            setSegments(lines);
+            showToast(`原本 ${before} 格，已自動調整為 ${lines.length} 格（只拆分／合併句子，沒有改字）`, 'info');
+        }
+
+        cardAnimations.forEach(stop => stop());
+        cardAnimations.clear();
+        state.runId++;
+        state.segments = lines;
+        state.style = getStyle();
+        state.pages = chunk(padToMultiple(lines), PANELS_PER_PAGE);
+        state.images = new Array(state.pages.length).fill(null);
+        state.pageTurns = [];
+        state.durations = [];
+        state.busyCards.clear();
+
+        el.emptyState.classList.add('hidden');
+        el.resultsArea.replaceChildren(...state.pages.map((group, i) => createStoryCard(i, group, state.pages.length)));
+        el.pageChips.innerHTML = state.pages.map((_, i) => `<button class="chip" data-chip="${i}" data-status="waiting">${i + 1}</button>`).join('');
+        state.pages.forEach((_, i) => setCardPlaceholder(i, 'far fa-clock', '排隊等待中…', 'waiting'));
+        updateExportButtons();
+        setStep(4);
+
+        runGenerationLoop();
+    }
+
+    async function runGenerationLoop() {
+        const total = state.pages.length;
+        state.isGenerating = true;
+        state.isPaused = false;
+        state.shouldCancel = false;
+        state.abortController = new AbortController();
+        state.startedAt = Date.now();
+        const { signal } = state.abortController;
+
+        setGenerateEnabled(false);
+        el.generateBtn.innerHTML = '<i class="fas fa-paintbrush fa-bounce"></i> 生成中…';
+        show(el.progressSection);
+        show(el.controlButtons, 'flex');
+        show(el.pauseBtn, 'flex');
+        hide(el.resumeBtn, 'flex');
+        setBarColor('indigo');
+        updateProgress('準備生成…');
+        const stopMeta = startTicker(updateProgressMeta);
+
+        let i = 0;
+        try {
+            while (i < total && !state.shouldCancel) {
+                if (state.images[i]) { i++; continue; }
+
+                await waitWhilePaused();
+                if (state.shouldCancel) break;
+                if (state.images[i]) continue;
+
+                state.currentIndex = i;
+                updateProgress(`正在繪製第 ${i + 1} / ${total} 張…`);
+                cardPart(i, 'card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                const ok = await renderPage(i, () => generatePage(i, signal));
+                if (!ok) {
+                    pauseGeneration(`第 ${i + 1} 張生成失敗，已暫停。按「繼續」或「重試這張」再試一次`);
+                    continue;
+                }
+                i++;
+                if (i < total && !state.images[i]) {
+                    updateProgress(`第 ${i} 張完成！準備下一張…`);
+                    await delay(PAGE_INTERVAL_MS, signal);
+                }
+            }
+        } catch (err) {
+            if (!isAbort(err)) throw err;
+        }
+
+        stopMeta();
+        state.isGenerating = false;
+        state.isPaused = false;
+        hide(el.controlButtons, 'flex');
+        setGenerateEnabled(true);
+        el.generateBtn.innerHTML = '<i class="fas fa-rotate"></i> 重新生成漫畫';
+
+        const spent = fmtSec(Math.floor((Date.now() - state.startedAt) / 1000));
+        if (state.shouldCancel) {
+            state.pages.forEach((_, idx) => {
+                if (!state.images[idx] && !state.busyCards.has(idx)) setCardPlaceholder(idx, 'fas fa-ban', '已取消', 'cancelled');
+            });
+            setBarColor('red');
+            updateProgress('已取消生成');
+            el.progressMeta.textContent = `共花費 ${spent}`;
+        } else {
+            setBarColor('green');
+            updateProgress('漫畫全部完成！🎉');
+            el.progressMeta.textContent = `共花費 ${spent}`;
+            setStep(5);
+            showToast('恭喜！所有六格漫畫都畫好了！', 'success');
+        }
+    }
+
+    el.generateBtn.addEventListener('click', startGeneration);
+
+    // ================= 匯出 =================
+    el.downloadAllBtn.addEventListener('click', async () => {
+        const items = state.images.map((url, i) => ({ url, i })).filter(x => x.url);
+        if (!items.length) return showToast('目前還沒有任何生成完成的圖片可供下載！', 'warning');
+        if (typeof JSZip === 'undefined') return showToast('壓縮工具尚未載入，請稍後再試', 'info');
+
+        setBusy(el.downloadAllBtn, true, '<i class="fas fa-spinner fa-spin"></i> 打包中…');
+        try {
+            const zip = new JSZip();
+            const folder = zip.folder('AI_Comics');
+            for (const { url, i } of items) {
+                const blob = dataUrlToBlob(url);
+                folder.file(`comic_page_${String(i + 1).padStart(2, '0')}.${extOf(blob.type)}`, blob);
+            }
+            saveBlob(await zip.generateAsync({ type: 'blob' }), `AI六格漫畫全套_${today()}.zip`);
+            showToast(`已打包下載 ${items.length} 張漫畫圖片！`, 'success');
+        } catch (err) {
+            console.error('下載壓縮檔錯誤:', err);
+            showToast('打包下載失敗：' + err.message, 'error');
+        } finally {
+            setBusy(el.downloadAllBtn, false);
+        }
+    });
+
+    el.exportPdfBtn.addEventListener('click', async () => {
+        const images = state.images.filter(Boolean);
+        if (!images.length) return showToast('目前還沒有任何生成完成的圖片可供匯出！', 'warning');
+        if (!window.jspdf) return showToast('PDF 工具尚未載入，請稍後再試', 'info');
+        if (images.length < state.images.length) {
+            showToast(`尚有 ${state.images.length - images.length} 張未完成，將先匯出已完成的 ${images.length} 張`, 'warning');
+        }
+
+        setBusy(el.exportPdfBtn, true, '<i class="fas fa-spinner fa-spin"></i> 匯出中…');
+        await delay(50);
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageW = 210, pageH = 297, margin = 10;
+            const maxW = pageW - margin * 2, maxH = pageH - margin * 2;
+
+            images.forEach((img, i) => {
+                if (i > 0) doc.addPage();
+                const props = doc.getImageProperties(img);
+                const ratio = props.width / props.height;
+                let w = maxW, h = maxW / ratio;
+                if (h > maxH) { h = maxH; w = maxH * ratio; }
+                doc.addImage(img, props.fileType, (pageW - w) / 2, (pageH - h) / 2, w, h, undefined, 'FAST');
+            });
+            doc.save(`逐句課文繪畫師_${today()}.pdf`);
+            showToast('PDF 匯出成功！', 'success');
+        } catch (err) {
+            console.error('PDF 匯出錯誤:', err);
+            showToast('PDF 匯出失敗：' + err.message, 'error');
+        } finally {
+            setBusy(el.exportPdfBtn, false);
+        }
+    });
+
+    window.addEventListener('beforeunload', e => {
+        if (state.isGenerating || state.images.some(Boolean)) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    // ================= 初始化 =================
+    setStatus(STATUS.idle);
+    setStep(1);
+    updateLineCounter();
+    </script>
+</body>
+</html>

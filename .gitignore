@@ -10,11 +10,15 @@
 **/圖片/
 slide_images/
 **/Kahoot/
+**/AI_Comics/
 
 # Ignore workspace temporary/scratch files
 temp_*
 scratch_*
 image_prompts_clean.txt
+debug_crop*
+extracted_calls*
+v3_script.py
 .gemini/
 
 # Python Cache
