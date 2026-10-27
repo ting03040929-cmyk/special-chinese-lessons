@@ -8,6 +8,7 @@
 
 # Ignore raw asset directories
 **/圖片/
+**/圖片_*/
 slide_images/
 **/Kahoot/
 **/AI_Comics/
